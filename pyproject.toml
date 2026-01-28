@@ -3,11 +3,12 @@ name = "outdoor-aerial-server-quic"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
-    "pyaudio>=0.2.14",
-    "pywebtransport>=0.8.1",
+    "numpy>=2.4.1",
+    "pywebtransport>=0.11.1",
     "rich>=14.3.0",
+    "sounddevice>=0.5.5",
 ]
 
 [[tool.uv.index]]
