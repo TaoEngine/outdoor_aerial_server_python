@@ -1,5 +1,5 @@
-from service import BroadcastService
-from dataclass import (
+from service.capture.service import CaptureService
+from service.capture.dataclass import (
     BroadcastSampleRate,
     BroadcastChannel,
     BroadcastDtype,
@@ -7,7 +7,7 @@ from dataclass import (
 )
 
 __all__ = [
-    "BroadcastService",
+    "CaptureService",
     "BroadcastSampleRate",
     "BroadcastChannel",
     "BroadcastDtype",
