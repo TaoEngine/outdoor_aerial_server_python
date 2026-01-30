@@ -9,6 +9,39 @@ wheels/
 # Virtual environments
 .venv
 
-# 不能泄密证书
+# 证书文件 (不能泄密)
 *.crt
 *.key
+
+# Go 编译输出
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+outdoor_aerial_server
+client_player
+
+# Go 依赖目录 (使用 go modules)
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS 文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+
+# 临时文件
+tmp/
+temp/
+*.tmp

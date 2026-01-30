@@ -1,8 +1,9 @@
 import asyncio
 import logging
+from weakref import WeakSet
 
 from sounddevice import RawInputStream
-from typing import Callable, Optional, Self
+from typing import Awaitable, Callable, Optional, Self
 
 from service.capture.dataclass import BroadcastConfig
 
@@ -17,11 +18,18 @@ class CaptureService:
             cls.__instance = super().__new__(cls)
         return cls.__instance
 
-    def __init__(self, config: BroadcastConfig) -> None:
+    def __init__(self, config: Optional[BroadcastConfig] = None) -> None:
+        # 防止单例重复初始化
+        if hasattr(self, "_CaptureService__config"):
+            return
+
+        if config is None:
+            raise ValueError("CaptureService 没有在初始化时被配置")
+
         self.__config: BroadcastConfig = config
         """广播采集配置"""
 
-        self.__clients: set[Callable] = set()
+        self.__clients: WeakSet[Callable[[bytes], Awaitable[None]]] = WeakSet()
         """订阅广播采集服务的客户端们"""
 
         maxsize: int = self.__config.maxsize
@@ -91,9 +99,7 @@ class CaptureService:
 
     def __callback(self, indata: bytes, *_) -> None:
         if self.__loop is not None:
-            self.__loop.call_soon_threadsafe(
-                self.__queue.put_nowait, indata
-            )
+            self.__loop.call_soon_threadsafe(self.__queue.put_nowait, indata)
 
     async def __distribute(self) -> None:
         try:
@@ -111,12 +117,12 @@ class CaptureService:
         except asyncio.CancelledError:
             pass
 
-    def subscribe(self, client: Callable) -> None:
+    def subscribe(self, client: Callable[[bytes], Awaitable[None]]) -> None:
         self.__clients.add(client)
         clients: int = self.__clients.__len__()
         log.info(f"有新的客户端加入分发服务 目前共 {clients} 个客户端")
 
-    def unsubscribe(self, client: Callable) -> None:
+    def unsubscribe(self, client: Callable[[bytes], Awaitable[None]]) -> None:
         self.__clients.discard(client)
         clients: int = self.__clients.__len__()
         log.info(f"有客户端退出分发服务 目前剩 {clients} 个客户端")
