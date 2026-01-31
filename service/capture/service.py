@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from weakref import WeakSet
+from weakref import WeakValueDictionary
 
 from sounddevice import RawInputStream
 from typing import Awaitable, Callable, Optional, Self
@@ -29,7 +29,10 @@ class CaptureService:
         self.__config: BroadcastConfig = config
         """广播采集配置"""
 
-        self.__clients: WeakSet[Callable[[bytes], Awaitable[None]]] = WeakSet()
+        # self.__clients: WeakSet[Callable[[bytes], Awaitable[None]]] = WeakSet()
+        self.__clients: WeakValueDictionary[int, Callable[[bytes], Awaitable[None]]] = (
+            WeakValueDictionary()
+        )
         """订阅广播采集服务的客户端们"""
 
         maxsize: int = self.__config.maxsize
@@ -80,6 +83,9 @@ class CaptureService:
             await self.__event.wait()
 
     def stop(self) -> None:
+        self.__clients.clear()
+        log.info("广播采集客户端被清空")
+
         if self.__input is not None:
             log.info("广播采集服务将被终止")
             self.__input.stop()
@@ -109,7 +115,7 @@ class CaptureService:
                     await asyncio.gather(
                         *[
                             broadcast_client(audio_frame)
-                            for broadcast_client in self.__clients
+                            for broadcast_client in self.__clients.values()
                         ],
                         return_exceptions=True,
                     )
@@ -117,12 +123,12 @@ class CaptureService:
         except asyncio.CancelledError:
             pass
 
-    def subscribe(self, client: Callable[[bytes], Awaitable[None]]) -> None:
-        self.__clients.add(client)
+    def subscribe(self, id: int, client: Callable[[bytes], Awaitable[None]]) -> None:
+        self.__clients[id] = client
         clients: int = self.__clients.__len__()
         log.info(f"有新的客户端加入分发服务 目前共 {clients} 个客户端")
 
-    def unsubscribe(self, client: Callable[[bytes], Awaitable[None]]) -> None:
-        self.__clients.discard(client)
+    def unsubscribe(self, id: int) -> None:
+        self.__clients.pop(id)
         clients: int = self.__clients.__len__()
         log.info(f"有客户端退出分发服务 目前剩 {clients} 个客户端")

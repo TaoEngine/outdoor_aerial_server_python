@@ -18,7 +18,6 @@ from rich.logging import RichHandler
 
 from handler.broadcast import BroadcastHandler
 from service.capture import CaptureService, BroadcastConfig
-from service.capture.dataclass import BroadcastBlockSize
 
 logging.basicConfig(
     level="INFO",
@@ -51,9 +50,7 @@ class WebTransportProtocol(QuicConnectionProtocol):
             # 初始化 H3 连接
             if self._h3 is None:
                 self._h3 = H3Connection(self._quic, enable_webtransport=True)
-                self._broadcast_handler = BroadcastHandler(
-                    self._h3, broadcast_service
-                )
+                self._broadcast_handler = BroadcastHandler(self._h3, broadcast_service)
 
             # 处理 HTTP/3 事件
             for h3_event in self._h3.handle_event(event):
@@ -66,7 +63,7 @@ class WebTransportProtocol(QuicConnectionProtocol):
         elif isinstance(event, WebTransportStreamDataReceived):
             # 转发给 broadcast handler
             if self._broadcast_handler:
-                self._broadcast_handler.handle_event(event)
+                self._broadcast_handler.handle(event)
         elif isinstance(event, DataReceived):
             # 标准 HTTP 数据，检查是否为 WebTransport 会话的一部分
             pass
@@ -78,13 +75,14 @@ class WebTransportProtocol(QuicConnectionProtocol):
         path = headers.get(":path", "")
         protocol = headers.get(":protocol", "")
 
-        log.info(f"{method} {path} ({protocol})")
-
+        # log.info(f"{method} {path} ({protocol})")
+        log.info(f"客户端将要通过 {protocol} 协议访问 {path} 服务")
         # WebTransport CONNECT 请求
         if method == "CONNECT" and protocol == "webtransport":
             if path == "/broadcast":
                 self._accept_webtransport(event.stream_id)
             else:
+                log.warning(f"客户端访问了一个不提供服务的路径 {path} 已被拒绝")
                 self._reject_request(event.stream_id, 404)
         else:
             # 普通 HTTP 请求
@@ -102,7 +100,7 @@ class WebTransportProtocol(QuicConnectionProtocol):
         )
         # 通知 broadcast handler 新连接
         if self._broadcast_handler:
-            self._broadcast_handler.handle_event(
+            self._broadcast_handler.handle(
                 HeadersReceived(
                     headers=[(b":method", b"CONNECT"), (b":path", b"/broadcast")],
                     stream_id=stream_id,
@@ -156,9 +154,10 @@ async def main():
     except Exception:
         log.error(f"TLS 证书不存在，请提供 {cert_path} 和 {key_path}")
         log.info("可以使用 openssl 生成自签名证书:")
-        log.info('  openssl req -x509 -nodes -days 365 -newkey rsa:2048 '
-                '-keyout key.pem -out cert.pem -subj "/CN=localhost"')
-    
+        log.info(
+            "  openssl req -x509 -nodes -days 365 -newkey rsa:2048 "
+            '-keyout key.pem -out cert.pem -subj "/CN=localhost"'
+        )
 
     log.info("启动 QUIC HTTP/3 服务器，监听 0.0.0.0:8908")
     log.info("WebTransport 广播端点: https://localhost:8908/broadcast")
