@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class BroadcastSampleRate(Enum):
-    """广播采集采样率设置"""
+class CaptureSampleRate(Enum):
+    """广播信号采样率设置"""
 
     R16000 = 16000
     """16000Hz"""
@@ -30,8 +30,8 @@ class BroadcastSampleRate(Enum):
     """192000Hz"""
 
 
-class BroadcastChannel(Enum):
-    """广播采集声道设置"""
+class CaptureChannel(Enum):
+    """广播信号声道设置"""
 
     Mono = 1
     """设置采集单声道广播"""
@@ -40,21 +40,21 @@ class BroadcastChannel(Enum):
     """设置采集立体声广播"""
 
 
-class BroadcastDtype(Enum):
-    """广播采集位数设置"""
+class CaptureDtype(Enum):
+    """广播信号位数设置"""
 
     Bit16 = "int16"
     """16位深"""
 
-    # Bit24 = "int24"
-    # """24位深"""
+    Bit24 = "int24"
+    """24位深"""
 
     Bit32 = "int32"
     """32位深"""
 
 
-class BroadcastBlockSize(Enum):
-    """广播采集数据包大小设置"""
+class CaptureBlockSize(Enum):
+    """广播信号数据包大小设置"""
 
     B1024 = 1024
     """最小1024字节"""
@@ -70,23 +70,23 @@ class BroadcastBlockSize(Enum):
 
 
 @dataclass
-class BroadcastConfig:
-    """广播采集配置"""
+class CaptureConfig:
+    """广播信号采集配置"""
 
     device: int
-    """广播采集源"""
-
-    blocksize: BroadcastBlockSize = BroadcastBlockSize.B2048
-    """广播采集数据包大小"""
-
-    channel: BroadcastChannel = BroadcastChannel.Mono
-    """广播采集声道"""
-
-    dtype: BroadcastDtype = BroadcastDtype.Bit16
-    """广播采集位数"""
+    """采集源"""
 
     maxsize: int = 256
-    """广播采集队列最大数目"""
+    """最大数目"""
 
-    samplerate: BroadcastSampleRate = BroadcastSampleRate.R44100
-    """广播采集采样率"""
+    blocksize: CaptureBlockSize = CaptureBlockSize.B2048
+    """数据包大小"""
+
+    channel: CaptureChannel = CaptureChannel.Mono
+    """声道模式"""
+
+    dtype: CaptureDtype = CaptureDtype.Bit16
+    """位数"""
+
+    samplerate: CaptureSampleRate = CaptureSampleRate.R44100
+    """采样率"""
