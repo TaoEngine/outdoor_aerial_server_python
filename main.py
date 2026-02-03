@@ -17,7 +17,7 @@ from pyfiglet import figlet_format
 from rich.logging import RichHandler
 
 from handler.broadcast import BroadcastHandler
-from service.capture import CaptureService, BroadcastConfig
+from service.capture import CaptureService, CaptureConfig
 
 logging.basicConfig(
     level="INFO",
@@ -32,7 +32,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # 全局广播服务
-config = BroadcastConfig(device=0)
+config = CaptureConfig(device=0)
 broadcast_service = CaptureService(config=config)
 
 
@@ -41,19 +41,23 @@ class WebTransportProtocol(QuicConnectionProtocol):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._h3: Optional[H3Connection] = None
         self._broadcast_handler: Optional[BroadcastHandler] = None
+        """路径 /broadcast 的端点"""
+
+        self._connection: Optional[H3Connection] = None
+        """WebTransport 客户端"""
 
     def quic_event_received(self, event: QuicEvent) -> None:
-        """处理 QUIC 事件"""
+        """QUIC 事件入口"""
         if isinstance(event, StreamDataReceived):
-            # 初始化 H3 连接
-            if self._h3 is None:
-                self._h3 = H3Connection(self._quic, enable_webtransport=True)
-                self._broadcast_handler = BroadcastHandler(self._h3, broadcast_service)
+            if self._connection is None:
+                self._connection = H3Connection(self._quic, enable_webtransport=True)
+                self._broadcast_handler = BroadcastHandler(
+                    self._connection, broadcast_service
+                )
 
             # 处理 HTTP/3 事件
-            for h3_event in self._h3.handle_event(event):
+            for h3_event in self._connection.handle_event(event):
                 self._handle_h3_event(h3_event)
 
     def _handle_h3_event(self, event: H3Event) -> None:
@@ -90,8 +94,8 @@ class WebTransportProtocol(QuicConnectionProtocol):
 
     def _accept_webtransport(self, stream_id: int) -> None:
         """接受 WebTransport 连接"""
-        assert self._h3 is not None
-        self._h3.send_headers(
+        assert self._connection is not None
+        self._connection.send_headers(
             stream_id=stream_id,
             headers=[
                 (b":status", b"200"),
@@ -111,23 +115,23 @@ class WebTransportProtocol(QuicConnectionProtocol):
 
     def _reject_request(self, stream_id: int, status: int) -> None:
         """拒绝请求"""
-        assert self._h3 is not None
-        self._h3.send_headers(
+        assert self._connection is not None
+        self._connection.send_headers(
             stream_id=stream_id,
             headers=[(b":status", str(status).encode())],
         )
 
     def _send_http_response(self, stream_id: int) -> None:
         """发送普通 HTTP 响应"""
-        assert self._h3 is not None
-        self._h3.send_headers(
+        assert self._connection is not None
+        self._connection.send_headers(
             stream_id=stream_id,
             headers=[
                 (b":status", b"200"),
                 (b"content-type", b"text/plain"),
             ],
         )
-        self._h3.send_data(
+        self._connection.send_data(
             stream_id=stream_id,
             data=b"Outdoor Aerial QUIC Server",
             end_stream=True,
@@ -135,9 +139,6 @@ class WebTransportProtocol(QuicConnectionProtocol):
 
 
 async def main():
-    """主入口"""
-    log.info(f"\n{figlet_format('Outdoor Aerial')}\n永远热爱户外和广播！")
-
     # 加载 TLS 证书
     cert_path = "cert/localhost.crt"
     key_path = "cert/localhost.key"
@@ -159,11 +160,8 @@ async def main():
             '-keyout key.pem -out cert.pem -subj "/CN=localhost"'
         )
 
-    log.info("启动 QUIC HTTP/3 服务器，监听 0.0.0.0:8908")
-    log.info("WebTransport 广播端点: https://localhost:8908/broadcast")
-
     # 启动广播服务
-    asyncio.create_task(broadcast_service.stream())
+    asyncio.create_task(broadcast_service.start())
 
     # 启动 QUIC 服务器
     server = await serve(
@@ -172,6 +170,8 @@ async def main():
         configuration=configuration,
         create_protocol=WebTransportProtocol,
     )
+    log.info("启动 QUIC HTTP/3 服务器，监听 0.0.0.0:8908")
+    log.info("WebTransport 广播端点: https://localhost:8908/broadcast")
 
     try:
         await asyncio.Future()  # 永久运行
@@ -183,4 +183,5 @@ async def main():
 
 
 if __name__ == "__main__":
+    log.info(f"\n{figlet_format('Outdoor Aerial')}\n永远热爱户外和广播！")
     asyncio.run(main())
