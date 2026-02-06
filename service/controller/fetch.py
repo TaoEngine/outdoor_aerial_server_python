@@ -5,12 +5,12 @@ from weakref import WeakValueDictionary
 from sounddevice import RawInputStream
 from typing import Awaitable, Callable, Optional, Self
 
-from service.capture.dataclass import CaptureConfig
+from service.controller.dataclass import CaptureConfig
 
 log = logging.getLogger(__name__)
 
 
-class CaptureService:
+class FetchService:
     """广播信号采集分发服务"""
 
     __instance: Optional[Self] = None
@@ -22,11 +22,10 @@ class CaptureService:
 
     def __init__(self, config: Optional[CaptureConfig] = None) -> None:
         # 防止单例重复初始化
-        if hasattr(self, "_config"):
+        if hasattr(self, "_CaptureService__config"):
             return
 
-        if config is None:
-            raise ValueError("CaptureService 没有在初始化时被配置")
+        assert config, "CaptureService 没有在初始化时被配置"
 
         self.__config: CaptureConfig = config
         """广播信号采集配置"""
@@ -57,7 +56,7 @@ class CaptureService:
 
     async def start(self) -> None:
         """初始化广播信号采集分发服务"""
-        if self.__running is not None:
+        if self.__running:
             return
         self.__running = False
 
@@ -91,25 +90,25 @@ class CaptureService:
         self.__clients.clear()
         log.info("广播信号分发列表已被清空")
 
-        if self.__input is not None:
+        if self.__input:
             self.__input.stop()
             self.__input.close()
             self.__input = None
 
-        if self.__task is not None:
+        if self.__task:
             self.__task.cancel()
             self.__task = None
 
-        if self.__event is not None:
+        if self.__event:
             self.__event.set()
             self.__event = None
 
-        if self.__running is not None:
+        if self.__running:
             self.__running = None
 
     def __callback(self, indata: bytes, *_) -> None:
         """客户端分发的对象"""
-        if self.__loop is not None:
+        if self.__loop:
             self.__loop.call_soon_threadsafe(self.__queue.put_nowait, indata)
 
     async def __distribute(self) -> None:
@@ -136,5 +135,8 @@ class CaptureService:
 
     def unsubscribe(self, id: int) -> None:
         """让客户端取消订阅广播信号采集分发服务"""
-        self.__clients.pop(id)
-        log.info(f"有客户端退出分发服务 目前剩 {self.__clients.__len__()} 个")
+        try:
+            self.__clients.pop(id)
+            log.info(f"有客户端退出分发服务 目前剩 {self.__clients.__len__()} 个")
+        except KeyError:
+            log.warning(f"编号为 {id} 的客户端在尝试退出时出错")

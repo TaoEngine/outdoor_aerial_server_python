@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WebTransport PCM Receiver</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      }
+      body {
+        margin: 24px;
+        background: #0b0b0c;
+        color: #e7e7ea;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      input[type="text"] {
+        flex: 1 1 420px;
+        padding: 8px 10px;
+        background: #141417;
+        color: #e7e7ea;
+        border: 1px solid #2a2a2f;
+        border-radius: 8px;
+      }
+      button {
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #2a2a2f;
+        background: #1d1d22;
+        color: #e7e7ea;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .panel {
+        border: 1px solid #2a2a2f;
+        border-radius: 10px;
+        padding: 12px;
+        background: #111116;
+        margin-top: 12px;
+      }
+      .label {
+        font-size: 12px;
+        color: #a5a6b0;
+        margin-bottom: 4px;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>WebTransport PCM Receiver</h2>
+    <div class="row">
+      <input
+        id="url"
+        type="text"
+        value="https://wthomec4.dns.army:8908/broadcast"
+        spellcheck="false"
+      />
+      <button id="connect">Connect</button>
+      <button id="disconnect" disabled>Disconnect</button>
+    </div>
+    <div class="row">
+      <div>Format: PCM 16-bit, mono, 44100 Hz</div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Status</div>
+      <pre id="status">Idle</pre>
+    </div>
+    <div class="panel">
+      <div class="label">Stats</div>
+      <pre id="stats">chunks: 0 | bytes: 0</pre>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      const config = {
+        sampleRate: 44100,
+        channels: 1,
+        bytesPerSample: 2,
+      };
+
+      let transport = null;
+      let stream = null;
+      let reader = null;
+      let audioCtx = null;
+      let playerNode = null;
+      let readLoopRunning = false;
+      let chunks = 0;
+      let bytes = 0;
+      let statsTimer = null;
+
+      const workletSource = `
+        class PCMPlayerProcessor extends AudioWorkletProcessor {
+          constructor() {
+            super();
+            this.queue = [];
+            this.offset = 0;
+            this.queued = 0;
+            this.port.onmessage = (event) => {
+              const msg = event.data;
+              if (msg.type === "pcm") {
+                this.queue.push(msg.data);
+                this.queued += msg.data.length;
+              } else if (msg.type === "reset") {
+                this.queue.length = 0;
+                this.offset = 0;
+                this.queued = 0;
+              }
+            };
+          }
+
+          process(inputs, outputs) {
+            const output = outputs[0];
+            const channel = output[0];
+            let idx = 0;
+            while (idx < channel.length) {
+              if (this.queue.length === 0) {
+                channel[idx++] = 0;
+                continue;
+              }
+              const buffer = this.queue[0];
+              const remaining = buffer.length - this.offset;
+              const toCopy = Math.min(remaining, channel.length - idx);
+              channel.set(buffer.subarray(this.offset, this.offset + toCopy), idx);
+              idx += toCopy;
+              this.offset += toCopy;
+              if (this.offset >= buffer.length) {
+                this.queue.shift();
+                this.offset = 0;
+              }
+            }
+            return true;
+          }
+        }
+        registerProcessor("pcm-player", PCMPlayerProcessor);
+      `;
+
+      async function initAudio() {
+        if (audioCtx) {
+          return;
+        }
+        audioCtx = new AudioContext({ sampleRate: config.sampleRate });
+        const blob = new Blob([workletSource], {
+          type: "application/javascript",
+        });
+        const workletUrl = URL.createObjectURL(blob);
+        await audioCtx.audioWorklet.addModule(workletUrl);
+        URL.revokeObjectURL(workletUrl);
+        playerNode = new AudioWorkletNode(audioCtx, "pcm-player", {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [config.channels],
+        });
+        playerNode.connect(audioCtx.destination);
+      }
+
+      function setStatus(text) {
+        $("status").textContent = text;
+      }
+
+      function updateStats() {
+        $("stats").textContent = `chunks: ${chunks} | bytes: ${bytes}`;
+      }
+
+      async function connect() {
+        if (transport) {
+          return;
+        }
+        const url = $("url").value.trim();
+        if (!url) {
+          setStatus("Missing URL");
+          return;
+        }
+        setStatus("Connecting...");
+        $("connect").disabled = true;
+        try {
+          await initAudio();
+          await audioCtx.resume();
+          transport = new WebTransport(url);
+          transport.closed
+            .then(() => {
+              setStatus("Closed");
+              cleanup();
+            })
+            .catch((err) => {
+              setStatus(`Closed with error: ${err?.message || err}`);
+              cleanup();
+            });
+          await transport.ready;
+          setStatus("Connected");
+          $("disconnect").disabled = false;
+          stream = await transport.createBidirectionalStream();
+          const writer = stream.writable.getWriter();
+          await writer.write(new Uint8Array([1]));
+          await writer.close();
+          reader = stream.readable.getReader();
+          readLoopRunning = true;
+          readLoop();
+          statsTimer = setInterval(updateStats, 500);
+        } catch (err) {
+          setStatus(`Connect failed: ${err?.message || err}`);
+          cleanup();
+        }
+      }
+
+      async function readLoop() {
+        while (readLoopRunning && reader) {
+          try {
+            const { value, done } = await reader.read();
+            if (done) {
+              break;
+            }
+            if (value && value.byteLength) {
+              handleDatagram(value);
+            }
+          } catch (err) {
+            setStatus(`Read error: ${err?.message || err}`);
+            break;
+          }
+        }
+      }
+
+      function handleDatagram(value) {
+        if (!playerNode) {
+          return;
+        }
+        const byteLength = value.byteLength;
+        if (byteLength % config.bytesPerSample !== 0) {
+          return;
+        }
+        const samples = new Int16Array(
+          value.buffer,
+          value.byteOffset,
+          byteLength / config.bytesPerSample
+        );
+        const floats = new Float32Array(samples.length);
+        for (let i = 0; i < samples.length; i++) {
+          floats[i] = samples[i] / 32768;
+        }
+        playerNode.port.postMessage(
+          {
+            type: "pcm",
+            data: floats,
+          },
+          [floats.buffer]
+        );
+        chunks += 1;
+        bytes += byteLength;
+      }
+
+      function cleanup() {
+        readLoopRunning = false;
+        if (reader) {
+          reader.cancel().catch(() => {});
+          reader = null;
+        }
+        if (stream) {
+          stream = null;
+        }
+        if (transport) {
+          transport.close();
+          transport = null;
+        }
+        if (playerNode) {
+          playerNode.port.postMessage({ type: "reset" });
+        }
+        if (statsTimer) {
+          clearInterval(statsTimer);
+          statsTimer = null;
+        }
+        $("connect").disabled = false;
+        $("disconnect").disabled = true;
+        updateStats();
+      }
+
+      $("connect").addEventListener("click", connect);
+      $("disconnect").addEventListener("click", cleanup);
+      updateStats();
+    </script>
+  </body>
+</html>

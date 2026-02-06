@@ -1,37 +1,47 @@
+import asyncio
 import logging
 
-from aioquic.h3.connection import H3Connection
-from aioquic.h3.events import WebTransportStreamDataReceived, HeadersReceived
-
-from service.capture import CaptureService
+from service.controller import FetchService
 
 log = logging.getLogger(__name__)
 
 
-class BroadcastHandler:
-    def __init__(self, connection: H3Connection, capture: CaptureService):
-        self._capture: CaptureService = capture
-        """采集广播服务"""
+async def wt_broadcast(scope, receive, send):
+    msg = await receive()
+    if msg["type"] != "webtransport.connect":
+        return
 
-        self._connection: H3Connection = connection
-        """WebTransport 客户端"""
+    await send({"type": "webtransport.accept"})
 
-    def handle(self, event: HeadersReceived | WebTransportStreamDataReceived) -> None:
-        """处理 WebTransport 的生命周期"""
-        if isinstance(event, HeadersReceived):
-            self._connect(event.stream_id)
-        elif isinstance(event, WebTransportStreamDataReceived):
-            if event.stream_ended:
-                self._close(event.stream_id)
+    stream_id = None
+    while stream_id is None:
+        msg = await receive()
+        if msg["type"] == "webtransport.stream.receive":
+            stream_id = msg["stream"]
+            break
+        if msg["type"] == "webtransport.close":
+            return
 
-    def _connect(self, id: int) -> None:
-        """通过 WebTransport 提供服务"""
+    fetch = FetchService()
 
-        async def broadcast(data: bytes) -> None:
-            self._connection.send_data(id, data, end_stream=False)
+    async def push(data: bytes) -> None:
+        await send(
+            {
+                "type": "webtransport.stream.send",
+                "stream": stream_id,
+                "data": data,
+            }
+        )
 
-        self._capture.subscribe(id, broadcast)
+    fetch.subscribe(stream_id, push)
 
-    def _close(self, id: int) -> None:
-        """关闭 WebTransport 服务"""
-        self._capture.unsubscribe(id)
+    try:
+        while True:
+            msg = await receive()
+            if msg["type"] == "webtransport.close":
+                break
+    except asyncio.CancelledError:
+        pass
+    finally:
+        if stream_id is not None:
+            fetch.unsubscribe(stream_id)
