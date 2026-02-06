@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from weakref import WeakValueDictionary
 
 from sounddevice import RawInputStream
 from typing import Awaitable, Callable, Optional, Self
@@ -22,7 +21,7 @@ class FetchService:
 
     def __init__(self, config: Optional[CaptureConfig] = None) -> None:
         # 防止单例重复初始化
-        if hasattr(self, "_CaptureService__config"):
+        if hasattr(self, "_FetchService__config"):
             return
 
         assert config, "CaptureService 没有在初始化时被配置"
@@ -30,9 +29,7 @@ class FetchService:
         self.__config: CaptureConfig = config
         """广播信号采集配置"""
 
-        self.__clients: WeakValueDictionary[int, Callable[[bytes], Awaitable[None]]] = (
-            WeakValueDictionary()
-        )
+        self.__clients: dict[int, Callable[[bytes], Awaitable[None]]] = dict()
         """订阅服务的客户端们"""
 
         maxsize: int = self.__config.maxsize

@@ -19,7 +19,7 @@ class WebTransportSession:
         self.__stream_id: int = stream_id
         self.__scope: Scope = scope
         self.__transmit: Callable[[], None] = transmit
-        self.__queue: asyncio.Queue[Message] = asyncio.Queue()
+        self.__queue: asyncio.Queue[Message] = asyncio.Queue(maxsize=10)
         self.__accepted: bool = False
 
     async def receive(self):
@@ -42,9 +42,23 @@ class WebTransportSession:
                     stream_id=self.__stream_id,
                     data=message["data"],
                 )
+            case "webtransport.stream.open":
+                # 由服务端创建 WebTransport 流（默认双向，需兼容后续双向/单向扩展）
+                is_unidirectional = message.get("is_unidirectional", False)
+                stream_id = self.__connection.create_webtransport_stream(
+                    session_id=self.__stream_id,
+                    is_unidirectional=is_unidirectional,
+                )
+                self.__queue.put_nowait(
+                    {
+                        "type": "webtransport.stream.opened",
+                        "stream": stream_id,
+                        "is_unidirectional": is_unidirectional,
+                    }
+                )
             case "webtransport.stream.send":
                 self.__connection.send_data(
-                    stream_id=self.__stream_id,
+                    stream_id=message.get("stream", self.__stream_id),
                     data=message["data"],
                     end_stream=message.get("end_stream", False),
                 )

@@ -35,6 +35,7 @@ class WebTransportProtocol(QuicConnectionProtocol):
             # TODO 这是做什么的
             for h3_event in self.__h3.handle_event(event):
                 self.__handle_event(h3_event)
+            self.transmit()
 
     def __handle_event(self, event: H3Event) -> None:
         if isinstance(event, HeadersReceived):
