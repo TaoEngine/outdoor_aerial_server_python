@@ -1,7 +1,7 @@
 [project]
-name = "outdoor-aerial-server-quic"
+name = "outdoor-aerial-server-python"
 version = "0.1.0"
-description = "Add your description here"
+description = "永远热爱户外和广播"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
