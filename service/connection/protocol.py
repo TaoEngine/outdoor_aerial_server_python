@@ -1,5 +1,5 @@
 import asyncio
-from typing import Awaitable, Callable, Optional
+from typing import Callable, Optional
 from urllib.parse import urlsplit
 
 from aioquic.asyncio.protocol import QuicConnectionProtocol
@@ -11,69 +11,86 @@ from aioquic.h3.events import (
     WebTransportStreamDataReceived,
 )
 from aioquic.quic.events import ProtocolNegotiated, QuicEvent
-from starlette.types import Receive, Scope, Send
 
 from service.connection.session import WebTransportSession
 from service.connection.type import H3Header
 
-ASGIApp = Callable[[Scope, Receive, Send], Awaitable[None]]
+Handler = Callable
 
 
 class WebTransportProtocol(QuicConnectionProtocol):
-    def __init__(self, *args, app: ASGIApp | None = None, **kwargs):
+    def __init__(self, *args, app=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.__h3: Optional[H3Connection] = None
-        self.__app: ASGIApp | None = app
-        self.__sessions: dict[int, WebTransportSession] = dict()
+        self._h3: Optional[H3Connection] = None
+        self._app = app
+        # session_id -> WebTransportSession
+        self._sessions: dict[int, WebTransportSession] = {}
 
     def quic_event_received(self, event: QuicEvent) -> None:
         if isinstance(event, ProtocolNegotiated):
-            # 与客户端握手成功，确定建立 HTTP/3 连接
-            self.__h3 = H3Connection(self._quic, enable_webtransport=True)
+            self._h3 = H3Connection(self._quic, enable_webtransport=True)
 
-        if self.__h3:
-            # TODO 这是做什么的
-            for h3_event in self.__h3.handle_event(event):
-                self.__handle_event(h3_event)
+        if self._h3 is not None:
+            for h3_event in self._h3.handle_event(event):
+                self._handle_h3_event(h3_event)
             self.transmit()
 
-    def __handle_event(self, event: H3Event) -> None:
+    def _handle_h3_event(self, event: H3Event) -> None:
         if isinstance(event, HeadersReceived):
-            # 处理头部
-            header = H3Header.from_header(event.headers)
+            self._handle_headers(event)
 
-            if header.method == "CONNECT" and header.protocol == "webtransport":
-                path = header.path or "/"
-                parts = urlsplit(path)
-                client_addr = (
-                    self._transport.get_extra_info("peername")
-                    if self._transport
-                    else None
-                )
-
-                scope: Scope = {
-                    "type": "webtransport",
-                    "path": parts.path,
-                    "query_string": parts.query.encode(),
-                    "headers": event.headers,
-                    "client": client_addr,
-                    "stream_id": event.stream_id,
-                }
-
-                if self.__h3 is None or self.__app is None:
-                    return
-
-                session = WebTransportSession(
-                    connection=self.__h3,
-                    stream_id=event.stream_id,
-                    scope=scope,
-                    transmit=self.transmit
-                )
-                self.__sessions[event.stream_id] = session
-
-                asyncio.create_task(session.run_asgi(self.__app))
-
-        elif isinstance(event, (DatagramReceived, WebTransportStreamDataReceived)):
-            session = self.__sessions.get(event.stream_id)
-            if session:
+        elif isinstance(event, WebTransportStreamDataReceived):
+            # 子流事件：通过 event.session_id 找到所属会话
+            session = self._sessions.get(event.session_id)
+            if session is not None:
                 session.handle_event(event)
+
+        elif isinstance(event, DatagramReceived):
+            # 数据报事件：stream_id 就是 session_id
+            session = self._sessions.get(event.stream_id)
+            if session is not None:
+                session.handle_event(event)
+
+    def _handle_headers(self, event: HeadersReceived) -> None:
+        header = H3Header.from_header(event.headers)
+
+        if header.method != "CONNECT" or header.protocol != "webtransport":
+            return
+        if self._h3 is None or self._app is None:
+            return
+
+        path = header.path or "/"
+        parts = urlsplit(path)
+        client_addr = (
+            self._transport.get_extra_info("peername")
+            if self._transport
+            else None
+        )
+
+        scope = {
+            "type": "webtransport",
+            "path": parts.path,
+            "query_string": parts.query.encode(),
+            "headers": event.headers,
+            "client": client_addr,
+            "session_id": event.stream_id,
+        }
+
+        session = WebTransportSession(
+            h3=self._h3,
+            quic=self._quic,
+            session_id=event.stream_id,
+            scope=scope,
+            transmit=self.transmit,
+        )
+        self._sessions[event.stream_id] = session
+
+        handler = self._app.route(parts.path)
+        if handler is not None:
+            asyncio.create_task(self._run_session(session, handler))
+
+    async def _run_session(self, session: WebTransportSession, handler) -> None:
+        try:
+            await session.run(handler)
+        finally:
+            self._sessions.pop(session.session_id, None)

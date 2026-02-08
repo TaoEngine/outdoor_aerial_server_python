@@ -10,7 +10,6 @@ dependencies = [
     "pyfiglet>=1.0.4",
     "rich>=14.3.0",
     "sounddevice>=0.5.5",
-    "starlette>=0.52.1",
 ]
 
 [[tool.uv.index]]

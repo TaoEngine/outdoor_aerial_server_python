@@ -8,9 +8,10 @@ from pyfiglet import figlet_format
 from rich.logging import RichHandler
 
 from handler.broadcast import wt_broadcast
-from service.connection.app import StarletteWebTransport
+from service.connection.app import WebTransportApp
 from service.connection.protocol import WebTransportProtocol
 from service.controller import CaptureConfig, FetchService
+from service.controller.dataclass import CaptureChannel, CaptureDtype, CaptureSampleRate
 
 logging.basicConfig(
     level="INFO",
@@ -26,16 +27,23 @@ log = logging.getLogger(__name__)
 
 
 async def main():
-    app = StarletteWebTransport()
-    app.add_wt_route("/broadcast", wt_broadcast)
+    app = WebTransportApp()
+    app.add_route("/broadcast", wt_broadcast)
 
     # 全局广播服务
-    config = CaptureConfig(device=0)
+    config = CaptureConfig(
+        device=0,
+        channel=CaptureChannel.Stereo,
+        dtype=CaptureDtype.Bit24,
+        samplerate=CaptureSampleRate.R48000,
+    )
     fetch_service = FetchService(config=config)
     asyncio.create_task(fetch_service.start())
 
     # 加载 TLS 证书
-    configuration = QuicConfiguration(alpn_protocols=H3_ALPN, is_client=False, max_datagram_frame_size=65536)
+    configuration = QuicConfiguration(
+        alpn_protocols=H3_ALPN, is_client=False, max_datagram_frame_size=65536
+    )
     configuration.load_cert_chain(
         "cert/wthomec4.dns.army.cer",
         "cert/wthomec4.dns.army.key",
@@ -49,7 +57,7 @@ async def main():
         create_protocol=lambda *a, **kw: WebTransportProtocol(*a, app=app, **kw),
     )
     log.info("启动 QUIC HTTP/3 服务器，监听 0.0.0.0:8908")
-    log.info("WebTransport 广播端点: https://localhost:8908/broadcast")
+    log.info("WebTransport 广播端点: https://wthomec4.dns.army:8908/broadcast")
 
     try:
         await asyncio.Future()  # 永久运行
