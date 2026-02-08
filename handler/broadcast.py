@@ -1,49 +1,24 @@
-import asyncio
-import logging
-
+from service.connection.handler import WebTransportHandler, WebTransportStream
 from service.controller import FetchService
 
-log = logging.getLogger(__name__)
 
+class BroadcastHandler(WebTransportHandler):
+    def __init__(self, session_id: int, **kwargs) -> None:
+        super().__init__(session_id=session_id, **kwargs)
+        self._fetch = FetchService()
+        self._stream: WebTransportStream | None = None
 
-async def wt_broadcast(scope, receive, send):
-    fetch = FetchService()
+    async def on_session_ready(self) -> None:
+        self._stream = await self.create_stream(bidirectional=False)
 
-    msg = await receive()
-    if msg["type"] != "webtransport.connect":
-        return
+        async def push(data: bytes) -> None:
+            if self._stream is None or self._stream.closed:
+                return
+            await self._stream.write(data)
 
-    await send({"type": "webtransport.accept"})
+        self._fetch.subscribe(self._stream.stream_id, push)
 
-    await send({"type": "webtransport.stream.open", "is_unidirectional": True})
-
-    stream_id = None
-    while stream_id is None:
-        msg = await receive()
-        if msg["type"] == "webtransport.stream.opened":
-            stream_id = msg["stream"]
-            break
-        if msg["type"] == "webtransport.close":
-            return
-
-    async def push(data: bytes) -> None:
-        await send(
-            {
-                "type": "webtransport.stream.send",
-                "stream": stream_id,
-                "data": data,
-            }
-        )
-
-    fetch.subscribe(stream_id, push)
-
-    try:
-        while True:
-            msg = await receive()
-            if msg["type"] == "webtransport.close":
-                break
-    except asyncio.CancelledError:
-        pass
-    finally:
-        if stream_id is not None:
-            fetch.unsubscribe(stream_id)
+    async def on_session_closed(self, close_code: int, reason: str) -> None:
+        if self._stream is not None:
+            self._fetch.unsubscribe(self._stream.stream_id)
+            self._stream = None

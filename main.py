@@ -7,11 +7,16 @@ from aioquic.quic.configuration import QuicConfiguration
 from pyfiglet import figlet_format
 from rich.logging import RichHandler
 
-from handler.broadcast import wt_broadcast
+from handler.broadcast import BroadcastHandler
 from service.connection.app import WebTransportApp
 from service.connection.protocol import WebTransportProtocol
 from service.controller import CaptureConfig, FetchService
-from service.controller.dataclass import CaptureChannel, CaptureDtype, CaptureSampleRate
+from service.controller.dataclass import (
+    CaptureBlockSize,
+    CaptureChannel,
+    CaptureDtype,
+    CaptureSampleRate,
+)
 
 logging.basicConfig(
     level="INFO",
@@ -28,11 +33,12 @@ log = logging.getLogger(__name__)
 
 async def main():
     app = WebTransportApp()
-    app.add_route("/broadcast", wt_broadcast)
+    app.add_route("/broadcast", BroadcastHandler)
 
     # 全局广播服务
     config = CaptureConfig(
-        device=0,
+        device=1,
+        blocksize=CaptureBlockSize.B8192,
         channel=CaptureChannel.Stereo,
         dtype=CaptureDtype.Bit24,
         samplerate=CaptureSampleRate.R48000,
@@ -50,11 +56,14 @@ async def main():
     )
 
     # 启动 QUIC 服务器
+    log.info("正在注册 wthomec4.dns.army:8908 以作为服务")
     server = await serve(
         host="wthomec4.dns.army",
         port=8908,
         configuration=configuration,
-        create_protocol=lambda *a, **kw: WebTransportProtocol(*a, app=app, **kw),
+        create_protocol=lambda *args, **kwargs: WebTransportProtocol(
+            *args, app=app, **kwargs
+        ),
     )
     log.info("启动 QUIC HTTP/3 服务器，监听 0.0.0.0:8908")
     log.info("WebTransport 广播端点: https://wthomec4.dns.army:8908/broadcast")
