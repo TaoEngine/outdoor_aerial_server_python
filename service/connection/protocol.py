@@ -12,17 +12,17 @@ from aioquic.h3.events import (
 )
 from aioquic.quic.events import ConnectionTerminated, ProtocolNegotiated, QuicEvent
 
-from service.connection.app import WebTransportApp
+from service.connection.router import WebTransportRouter
 from service.connection.enum import H3Method, H3Protocol
 from service.connection.session import WebTransportSession
 from service.connection.dataclass import HeaderInfo, SessionInfo
 
 
 class WebTransportProtocol(QuicConnectionProtocol):
-    def __init__(self, *args, app=None, **kwargs):
+    def __init__(self, *args, app: WebTransportRouter, **kwargs):
         super().__init__(*args, **kwargs)
         self._h3: Optional[H3Connection] = None
-        self._app: Optional[WebTransportApp] = app
+        self._app: Optional[WebTransportRouter] = app
         self._sessions: dict[int, WebTransportSession] = {}
         """一个 ID 对应一个 Session 的列表"""
 

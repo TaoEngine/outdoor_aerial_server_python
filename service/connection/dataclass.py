@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import SplitResult, urlsplit
 
 from service.connection.enum import H3Method, H3Protocol, H3Scheme
+from service.connection.handler import HandlerFactory
 
 
 @dataclass(frozen=True)
@@ -75,14 +76,25 @@ class SessionInfo:
     session_id: int
     """请求方申请的连接 ID"""
 
-    path: str 
-    """请求方访问的端点""" # TODO 改为 SplitResult
+    path: str
+    """请求方访问的端点"""  # TODO 改为 SplitResult
 
-    query_string: bytes 
-    """""" # TODO 不知道干什么用的
+    query_string: bytes
+    """"""  # TODO 不知道干什么用的
 
     headers: list[tuple[bytes, bytes]]
-    """请求方发起的请求信息""" # TODO 改为 HeaderInfo
+    """请求方发起的请求信息"""  # TODO 改为 HeaderInfo
 
     client: Optional[tuple[str, int] | str]
-    """""" # TODO 不知道干什么用的
+    """"""  # TODO 不知道干什么用的
+
+
+@dataclass(frozen=True)
+class RouteInfo:
+    """WebTransport 的路由信息"""
+
+    handler_factory: HandlerFactory
+    """"""
+
+    kwargs: dict[str, Any]
+    """"""

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import abc
 import asyncio
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 
-from service.connection.dataclass import SessionInfo
+if TYPE_CHECKING:
+    from service.connection.dataclass import SessionInfo
 
 
 StreamSendFn = Callable[[int, bytes, bool], None]
@@ -149,3 +150,5 @@ class WebTransportHandler(abc.ABC):
         if self._transport_context is None:
             raise RuntimeError("WebTransport context is not bound yet.")
         return self._transport_context
+
+HandlerFactory = Callable[..., WebTransportHandler]
