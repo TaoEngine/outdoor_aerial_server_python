@@ -21,7 +21,7 @@ class WebTransportRouter:
             handler_factory=handler_factory,
             kwargs=kwargs,
         )
-        log.info(f"已安排 {path} 端点")
+        log.info(f"已注册 {path} 路由端点")
 
     def route(self, path: str) -> Optional[RouteInfo]:
         """根据路径查找 handler"""

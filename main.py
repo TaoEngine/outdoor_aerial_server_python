@@ -1,22 +1,22 @@
 import asyncio
 import logging
+from typing import Optional
 
-from aioquic.asyncio.server import serve
+from aioquic.asyncio.server import QuicServer
 from aioquic.h3.connection import H3_ALPN
 from aioquic.quic.configuration import QuicConfiguration
 from pyfiglet import figlet_format
 from rich.logging import RichHandler
 
-from handler.broadcast import BroadcastHandler
-from service.connection.router import WebTransportRouter
-from service.connection.protocol import WebTransportProtocol
-from service.controller import CaptureConfig, FetchService
+from service.connection import start_webtransport_service
+from service.controller import CaptureConfig, start_fetch_service
 from service.controller.dataclass import (
     CaptureBlockSize,
     CaptureChannel,
     CaptureDtype,
     CaptureSampleRate,
 )
+from service.controller.fetch import FetchService
 
 logging.basicConfig(
     level="INFO",
@@ -49,32 +49,30 @@ configuration.load_cert_chain(
 
 
 async def main():
-    # 广播信号采集服务
-    fetch_service = FetchService(config=config)
-    asyncio.create_task(fetch_service.start())
-
-    # HTTP/3 WebTransport 服务
-    log.info("正在注册 https://wthomec4.dns.army:8908 以作为服务")
-    app = WebTransportRouter()
-    app.add_route("/broadcast", BroadcastHandler)
-    server = await serve(
-        host="wthomec4.dns.army",
-        port=8908,
-        configuration=configuration,
-        create_protocol=lambda *args, **kwargs: WebTransportProtocol(
-            *args, app=app, **kwargs
-        ),
-    )
-
+    fetch_service: Optional[FetchService] = None
+    webtransport_service: Optional[QuicServer] = None
     try:
-        await asyncio.Future()  # 永久运行
-    except KeyboardInterrupt:
-        log.info("服务器正在关闭...")
+        # 广播信号采集分发服务
+        fetch_service = await start_fetch_service(config=config)
+
+        # HTTP/3 WebTransport 服务
+        webtransport_service = await start_webtransport_service(
+            configuration=configuration,
+            host="wthomec4.dns.army",
+        )
+
+        # 服务持续运行
+        await asyncio.Future()
     finally:
-        fetch_service.stop()
-        server.close()
+        if fetch_service:
+            fetch_service.stop()
+        if webtransport_service:
+            webtransport_service.close()
 
 
 if __name__ == "__main__":
     log.info(f"\n{figlet_format('Outdoor Aerial')}\n永远热爱户外和广播！")
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        log.warning("服务被 Ctrl+C 终止运行")

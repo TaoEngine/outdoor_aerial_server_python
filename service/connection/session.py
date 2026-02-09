@@ -5,7 +5,11 @@ import logging
 from typing import Any, Callable, Coroutine
 
 from aioquic.h3.connection import H3Connection
-from aioquic.h3.events import DataReceived, DatagramReceived, WebTransportStreamDataReceived
+from aioquic.h3.events import (
+    DataReceived,
+    DatagramReceived,
+    WebTransportStreamDataReceived,
+)
 from aioquic.quic.connection import (
     QuicConnection,
     stream_is_client_initiated,

@@ -27,14 +27,16 @@ class WebTransportProtocol(QuicConnectionProtocol):
         """一个 ID 对应一个 Session 的列表"""
 
     def quic_event_received(self, event: QuicEvent) -> None:
-        if isinstance(event, ProtocolNegotiated):
-            self._h3 = H3Connection(self._quic, enable_webtransport=True)
-        elif isinstance(event, ConnectionTerminated):
-            for session in self._sessions.values():
-                session.handle_connection_terminated(
-                    code=event.error_code,
-                    reason=event.reason_phrase,
-                )
+        match event:
+            case ProtocolNegotiated():
+                #
+                self._h3 = H3Connection(self._quic, enable_webtransport=True)
+            case ConnectionTerminated():
+                #
+                for session in self._sessions.values():
+                    session.handle_connection_terminated(
+                        code=event.error_code, reason=event.reason_phrase
+                    )
 
         if self._h3 is not None:
             for h3_event in self._h3.handle_event(event):
@@ -42,25 +44,25 @@ class WebTransportProtocol(QuicConnectionProtocol):
             self.transmit()
 
     def _handle_h3_event(self, event: H3Event) -> None:
-        if isinstance(event, HeadersReceived):
-            self._handle_headers(event)
-
-        elif isinstance(event, WebTransportStreamDataReceived):
-            # 子流事件：通过 event.session_id 找到所属会话
-            session = self._sessions.get(event.session_id)
-            if session is not None:
-                session.handle_stream_event(event)
-
-        elif isinstance(event, DatagramReceived):
-            # 数据报事件：stream_id 就是 session_id
-            session = self._sessions.get(event.stream_id)
-            if session is not None:
-                session.handle_datagram(event)
-
-        elif isinstance(event, DataReceived):
-            session = self._sessions.get(event.stream_id)
-            if session is not None:
-                session.handle_session_data(event)
+        match event:
+            case HeadersReceived():
+                #
+                self._handle_headers(event)
+            case WebTransportStreamDataReceived():
+                # 子流事件：通过 event.session_id 找到所属会话
+                session = self._sessions.get(event.session_id)
+                if session is not None:
+                    session.handle_stream_event(event)
+            case DatagramReceived():
+                # 数据报事件：stream_id 就是 session_id
+                session = self._sessions.get(event.stream_id)
+                if session is not None:
+                    session.handle_datagram(event)
+            case DataReceived():
+                #
+                session = self._sessions.get(event.stream_id)
+                if session is not None:
+                    session.handle_session_data(event)
 
     def _handle_headers(self, event: HeadersReceived) -> None:
         header = HeaderInfo.from_header(event.headers)
@@ -88,10 +90,8 @@ class WebTransportProtocol(QuicConnectionProtocol):
             return
 
         session_info = SessionInfo(
-            session_id=event.stream_id,
-            path=header.path.path,
-            query_string=header.path.query.encode(),
-            headers=event.headers,
+            stream_id=event.stream_id,
+            path=header.path,
             client=client_addr,
         )
 

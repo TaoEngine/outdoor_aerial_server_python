@@ -70,26 +70,6 @@ class HeaderInfo:
 
 
 @dataclass(frozen=True)
-class SessionInfo:
-    """WebTransport 一次连接事件中所含的信息"""
-
-    session_id: int
-    """请求方申请的连接 ID"""
-
-    path: str
-    """请求方访问的端点"""  # TODO 改为 SplitResult
-
-    query_string: bytes
-    """"""  # TODO 不知道干什么用的
-
-    headers: list[tuple[bytes, bytes]]
-    """请求方发起的请求信息"""  # TODO 改为 HeaderInfo
-
-    client: Optional[tuple[str, int] | str]
-    """"""  # TODO 不知道干什么用的
-
-
-@dataclass(frozen=True)
 class RouteInfo:
     """WebTransport 的路由信息"""
 
@@ -98,3 +78,17 @@ class RouteInfo:
 
     kwargs: dict[str, Any]
     """"""
+
+
+@dataclass(frozen=True)
+class SessionInfo:
+    """WebTransport 在单次连接事件中所含的信息"""
+
+    stream_id: int
+    """请求方申请的连接 ID"""
+
+    path: SplitResult
+    """请求方访问的端点（包含查询参数）"""
+
+    client: Optional[tuple[str, int] | str]
+    """在此次连接事件的客户端信息"""
