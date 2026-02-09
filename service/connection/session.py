@@ -17,7 +17,7 @@ from aioquic.quic.connection import (
 )
 
 from service.connection.handler import WebTransportHandler, WebTransportStream
-from service.connection.dataclass import SessionInfo
+from service.connection.interface.dataclass import SessionInfo
 
 log = logging.getLogger(__name__)
 

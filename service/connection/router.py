@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 
-from service.connection.dataclass import RouteInfo
+from service.connection.interface.dataclass import RouteInfo
 from service.connection.handler import HandlerFactory
 
 

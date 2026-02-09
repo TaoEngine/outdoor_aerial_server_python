@@ -10,13 +10,14 @@ from rich.logging import RichHandler
 
 from service.connection import start_webtransport_service
 from service.controller import CaptureConfig, start_fetch_service
-from service.controller.dataclass import (
+from service.controller.interface.dataclass import (
     CaptureBlockSize,
     CaptureChannel,
     CaptureDtype,
     CaptureSampleRate,
 )
 from service.controller.fetch import FetchService
+from service.plugin.registry import PluginRegistry
 
 logging.basicConfig(
     level="INFO",

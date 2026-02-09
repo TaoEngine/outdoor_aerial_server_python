@@ -13,9 +13,9 @@ from aioquic.h3.events import (
 from aioquic.quic.events import ConnectionTerminated, ProtocolNegotiated, QuicEvent
 
 from service.connection.router import WebTransportRouter
-from service.connection.enum import H3Method, H3Protocol
+from service.connection.interface.enum import H3Method, H3Protocol
 from service.connection.session import WebTransportSession
-from service.connection.dataclass import HeaderInfo, SessionInfo
+from service.connection.interface.dataclass import HeaderInfo, SessionInfo
 
 
 class WebTransportProtocol(QuicConnectionProtocol):

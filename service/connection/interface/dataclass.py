@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import SplitResult, urlsplit
 
-from service.connection.enum import H3Method, H3Protocol, H3Scheme
+from service.connection.interface.enum import H3Method, H3Protocol, H3Scheme
 from service.connection.handler import HandlerFactory
 
 

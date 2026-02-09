@@ -4,7 +4,7 @@ import logging
 from sounddevice import RawInputStream
 from typing import Awaitable, Callable, Optional, Self
 
-from service.controller.dataclass import CaptureConfig
+from service.controller.interface.dataclass import CaptureConfig
 
 log = logging.getLogger(__name__)
 

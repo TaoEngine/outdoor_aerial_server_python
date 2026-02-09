@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from service.controller.dataclass import (
+from service.controller.interface.dataclass import (
     CaptureChannel,
     CaptureConfig,
     CaptureDtype,

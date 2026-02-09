@@ -5,7 +5,7 @@ import asyncio
 from typing import TYPE_CHECKING, Callable, Protocol
 
 if TYPE_CHECKING:
-    from service.connection.dataclass import SessionInfo
+    from service.connection.interface.dataclass import SessionInfo
 
 
 StreamSendFn = Callable[[int, bytes, bool], None]

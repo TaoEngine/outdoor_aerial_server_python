@@ -427,6 +427,7 @@ dependencies = [
     { name = "pyfiglet" },
     { name = "rich" },
     { name = "sounddevice" },
+    { name = "yarl" },
 ]
 
 [package.metadata]
@@ -436,6 +437,7 @@ requires-dist = [
     { name = "pyfiglet", specifier = ">=1.0.4" },
     { name = "rich", specifier = ">=14.3.0" },
     { name = "sounddevice", specifier = ">=0.5.5" },
+    { name = "yarl", specifier = ">=1.22.0" },
 ]
 
 [[package]]
