@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebTransport 音频接收器</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1216;
+      --card: #151a21;
+      --border: #2a3340;
+      --text: #e8eef5;
+      --muted: #94a3b8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+      --accent: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(120deg, #0f172a, #111827);
+    }
+
+    header h1 {
+      margin: 0 0 6px 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .panel {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .row:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      background: #0b0f14;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 8px;
+      border-radius: 6px;
+      min-width: 120px;
+    }
+
+    input[type="range"] {
+      width: 160px;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: #111827;
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: #2563eb;
+      background: #1d4ed8;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      padding: 16px 24px 24px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .card h3 {
+      margin: 0 0 12px 0;
+      font-size: 15px;
+    }
+
+    .chain {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chain li {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .chain li span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status-ok {
+      border-color: rgba(34, 197, 94, 0.6);
+      color: var(--ok);
+    }
+
+    .status-warn {
+      border-color: rgba(245, 158, 11, 0.6);
+      color: var(--warn);
+    }
+
+    .status-error {
+      border-color: rgba(239, 68, 68, 0.6);
+      color: var(--err);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .stats div {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      background: #0b0f14;
+    }
+
+    .stats span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .log {
+      background: #0b0f14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      height: 320px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>WebTransport 广播音频接收器</h1>
+    <p>单文件版客户端，实时播放服务器音频流，并展示连接全链路调试信息。</p>
+  </header>
+
+  <section class="panel">
+    <div class="row">
+      <label for="url">服务地址</label>
+      <input id="url" type="text" value="https://wthomec4.dns.army:8908/broadcast" size="40" />
+      <button class="primary" id="connect">连接</button>
+      <button id="disconnect" disabled>断开</button>
+      <button id="resume" disabled>启动音频</button>
+    </div>
+    <div class="row">
+      <label for="sampleRate">采样率</label>
+      <input id="sampleRate" type="number" value="44100" min="8000" step="1000" />
+      <label for="channels">声道</label>
+      <select id="channels">
+        <option value="1">单声道</option>
+        <option value="2" selected>立体声</option>
+      </select>
+      <label for="bitDepth">位深</label>
+      <select id="bitDepth">
+        <option value="16" selected>16 位</option>
+        <option value="24">24 位</option>
+        <option value="32">32 位</option>
+      </select>
+      <label for="targetBuffer">缓冲目标(ms)</label>
+      <input id="targetBuffer" type="number" value="120" min="20" step="10" />
+      <label for="gain">输出增益</label>
+      <input id="gain" type="range" min="0" max="2" step="0.01" value="1" />
+      <span id="gainValue">1.00</span>
+    </div>
+    <div class="row">
+      <label><input id="autoScroll" type="checkbox" checked />日志自动滚动</label>
+      <button id="clearLog">清空日志</button>
+      <button id="copyLog">复制日志</button>
+      <span class="hint">提示：首次播放需要点击“启动音频”，浏览器才允许输出声音。</span>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h3>连接全链路</h3>
+      <ul class="chain" id="chain">
+        <li data-step="support">浏览器支持 WebTransport <span>待检测</span></li>
+        <li data-step="secure">安全上下文(HTTPS) <span>待检测</span></li>
+        <li data-step="audio">音频上下文可用 <span>待检测</span></li>
+        <li data-step="transport">创建 WebTransport 实例 <span>待连接</span></li>
+        <li data-step="ready">会话 ready 完成 <span>待连接</span></li>
+        <li data-step="stream">收到单向流 <span>待接收</span></li>
+        <li data-step="data">收到音频数据 <span>待接收</span></li>
+        <li data-step="play">音频播放中 <span>待启动</span></li>
+        <li data-step="closed">会话已关闭 <span>等待关闭</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>实时统计</h3>
+      <div class="stats">
+        <div><span>连接状态</span><strong id="status">未连接</strong></div>
+        <div><span>采样率(实际)</span><strong id="actualRate">-</strong></div>
+        <div><span>已接收字节</span><strong id="bytes">0</strong></div>
+        <div><span>已接收流数</span><strong id="streams">0</strong></div>
+        <div><span>缓冲时长(ms)</span><strong id="bufferMs">0</strong></div>
+        <div><span>播放欠载次数</span><strong id="underruns">0</strong></div>
+        <div><span>最近数据时间</span><strong id="lastData">-</strong></div>
+        <div><span>日志行数</span><strong id="logCount">0</strong></div>
+      </div>
+    </div>
+
+    <div class="card" style="grid-column: 1 / -1">
+      <h3>调试日志</h3>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const qs = (id) => document.getElementById(id);
+      const logEl = qs("log");
+      const logCountEl = qs("logCount");
+      const statusEl = qs("status");
+      const bytesEl = qs("bytes");
+      const streamsEl = qs("streams");
+      const bufferMsEl = qs("bufferMs");
+      const underrunsEl = qs("underruns");
+      const actualRateEl = qs("actualRate");
+      const lastDataEl = qs("lastData");
+      const gainEl = qs("gain");
+      const gainValueEl = qs("gainValue");
+      const targetBufferEl = qs("targetBuffer");
+
+      const steps = new Map(
+        Array.from(document.querySelectorAll("#chain li")).map((li) => [
+          li.dataset.step,
+          li,
+        ]),
+      );
+
+      const state = {
+        transport: null,
+        reader: null,
+        audioCtx: null,
+        workletNode: null,
+        workletLoaded: false,
+        workletUrl: null,
+        gainNode: null,
+        pending: new Uint8Array(0),
+        streams: 0,
+        bytes: 0,
+        underruns: 0,
+        readyToPlay: false,
+        running: false,
+        lastDataTime: null,
+        logLines: 0,
+        bufferedFrames: 0,
+        bufferSampleRate: 0,
+      };
+
+      const levelMap = {
+        INFO: "信息",
+        WARN: "警告",
+        ERROR: "错误",
+      };
+
+      const log = (level, message) => {
+        const now = new Date();
+        const time = now.toLocaleTimeString("zh-CN", { hour12: false });
+        const label = levelMap[level] || level;
+        const line = `[${time}] [${label}] ${message}`;
+        state.logLines += 1;
+        logCountEl.textContent = String(state.logLines);
+        logEl.textContent += (state.logLines === 1 ? "" : "\n") + line;
+        if (qs("autoScroll").checked) {
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+      };
+
+      const setStep = (key, status, detail) => {
+        const li = steps.get(key);
+        if (!li) return;
+        li.classList.remove("status-ok", "status-warn", "status-error");
+        if (status) li.classList.add(`status-${status}`);
+        const span = li.querySelector("span");
+        if (span && detail) span.textContent = detail;
+      };
+
+      const setStatus = (text) => {
+        statusEl.textContent = text;
+      };
+
+      const updateStats = () => {
+        bytesEl.textContent = state.bytes.toLocaleString("zh-CN");
+        streamsEl.textContent = String(state.streams);
+        underrunsEl.textContent = String(state.underruns);
+        if (state.bufferSampleRate) {
+          const ms = Math.round(
+            (state.bufferedFrames / state.bufferSampleRate) * 1000,
+          );
+          bufferMsEl.textContent = String(ms);
+        } else {
+          bufferMsEl.textContent = "0";
+        }
+        if (state.lastDataTime) {
+          lastDataEl.textContent = state.lastDataTime.toLocaleTimeString("zh-CN", {
+            hour12: false,
+          });
+        }
+      };
+
+      const createWorkletURL = () => {
+        const code = `
+class PcmQueue {
+  constructor(channels, sampleRate) {
+    this.channels = channels;
+    this.sampleRate = sampleRate;
+    this.chunks = [];
+    this.offset = 0;
+    this.frames = 0;
+  }
+
+  reset(channels, sampleRate) {
+    this.channels = channels;
+    this.sampleRate = sampleRate;
+    this.chunks = [];
+    this.offset = 0;
+    this.frames = 0;
+  }
+
+  enqueue(float32Interleaved) {
+    if (!float32Interleaved || float32Interleaved.length === 0) return;
+    this.chunks.push(float32Interleaved);
+    this.frames += float32Interleaved.length / this.channels;
+  }
+
+  dequeue(output, framesNeeded) {
+    let framesWritten = 0;
+    while (framesWritten < framesNeeded && this.chunks.length > 0) {
+      const chunk = this.chunks[0];
+      const availableFrames = (chunk.length - this.offset) / this.channels;
+      const framesToCopy = Math.min(framesNeeded - framesWritten, availableFrames);
+      for (let i = 0; i < framesToCopy; i += 1) {
+        const base = this.offset + i * this.channels;
+        for (let ch = 0; ch < this.channels; ch += 1) {
+          output[ch][framesWritten + i] = chunk[base + ch];
+        }
+      }
+      this.offset += framesToCopy * this.channels;
+      framesWritten += framesToCopy;
+      this.frames -= framesToCopy;
+      if (this.offset >= chunk.length) {
+        this.chunks.shift();
+        this.offset = 0;
+      }
+    }
+    return framesWritten;
+  }
+}
+
+class PcmPlayerProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.queue = new PcmQueue(1, sampleRate);
+    this.targetBufferMs = 0;
+    this.readyToPlay = false;
+    this.underruns = 0;
+    this.lastReportFrame = 0;
+    this.reportIntervalFrames = Math.max(1, Math.round(sampleRate / 4));
+
+    this.port.onmessage = (event) => {
+      const msg = event.data || {};
+      if (msg.type === "config") {
+        const channels = Number(msg.channels) || 1;
+        const cfgSampleRate = Number(msg.sampleRate) || sampleRate;
+        this.queue.reset(channels, cfgSampleRate);
+        this.targetBufferMs = Number(msg.targetBufferMs) || 0;
+        this.readyToPlay = false;
+        this.underruns = 0;
+        this._report(currentFrame, true);
+        return;
+      }
+
+      if (msg.type === "data") {
+        const payload = msg.payload;
+        if (payload && payload.length) {
+          this.queue.enqueue(payload);
+        }
+        return;
+      }
+
+      if (msg.type === "reset") {
+        this.queue.reset(this.queue.channels, this.queue.sampleRate);
+        this.readyToPlay = false;
+        this.underruns = 0;
+        this._report(currentFrame, true);
+        return;
+      }
+
+      if (msg.type === "target") {
+        this.targetBufferMs = Number(msg.targetBufferMs) || 0;
+      }
+    };
+  }
+
+  _report(frameNow, force) {
+    const now = typeof frameNow === "number" ? frameNow : currentFrame;
+    if (!force && now - this.lastReportFrame < this.reportIntervalFrames) {
+      return;
+    }
+    this.lastReportFrame = now;
+    this.port.postMessage({
+      type: "stats",
+      frames: this.queue.frames,
+      underruns: this.underruns,
+      readyToPlay: this.readyToPlay,
+    });
+  }
+
+  process(inputs, outputs) {
+    const output = outputs[0];
+    if (!output || output.length === 0) {
+      return true;
+    }
+
+    const framesNeeded = output[0].length;
+    const bufferedMs = this.queue.sampleRate
+      ? (this.queue.frames / this.queue.sampleRate) * 1000
+      : 0;
+
+    if (!this.readyToPlay) {
+      if (this.targetBufferMs <= 0 || bufferedMs >= this.targetBufferMs) {
+        this.readyToPlay = true;
+        this._report(currentFrame, true);
+      }
+    }
+
+    let framesWritten = 0;
+    if (this.readyToPlay) {
+      framesWritten = this.queue.dequeue(output, framesNeeded);
+    }
+
+    if (framesWritten < framesNeeded) {
+      for (let ch = 0; ch < output.length; ch += 1) {
+        output[ch].fill(0, framesWritten);
+      }
+      if (this.readyToPlay) {
+        this.underruns += 1;
+      }
+    }
+
+    this._report(currentFrame, false);
+    return true;
+  }
+}
+
+registerProcessor("pcm-player", PcmPlayerProcessor);
+`;
+        const blob = new Blob([code], { type: "application/javascript" });
+        return URL.createObjectURL(blob);
+      };
+
+      const decodePCM = (data, bitDepth) => {
+        const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+        const bytesPerSample = bitDepth / 8;
+        const samples = Math.floor(view.byteLength / bytesPerSample);
+        const out = new Float32Array(samples);
+        if (bitDepth === 16) {
+          for (let i = 0; i < samples; i += 1) {
+            out[i] = view.getInt16(i * 2, true) / 32768;
+          }
+        } else if (bitDepth === 24) {
+          for (let i = 0; i < samples; i += 1) {
+            const offset = i * 3;
+            const b0 = view.getUint8(offset);
+            const b1 = view.getUint8(offset + 1);
+            const b2 = view.getUint8(offset + 2);
+            let value = b0 | (b1 << 8) | (b2 << 16);
+            if (value & 0x800000) {
+              value |= 0xff000000;
+            }
+            out[i] = value / 8388608;
+          }
+        } else {
+          for (let i = 0; i < samples; i += 1) {
+            out[i] = view.getInt32(i * 4, true) / 2147483648;
+          }
+        }
+        return out;
+      };
+
+      const handleWorkletMessage = (event) => {
+        const msg = event.data || {};
+        if (msg.type !== "stats") return;
+
+        if (typeof msg.frames === "number") {
+          state.bufferedFrames = msg.frames;
+        }
+
+        if (typeof msg.underruns === "number") {
+          state.underruns = msg.underruns;
+          underrunsEl.textContent = String(state.underruns);
+        }
+
+        if (typeof msg.readyToPlay === "boolean") {
+          if (msg.readyToPlay && !state.readyToPlay) {
+            state.readyToPlay = true;
+            setStep("play", "ok", "开始输出");
+            const bufferedMs = state.bufferSampleRate
+              ? Math.round(
+                (state.bufferedFrames / state.bufferSampleRate) * 1000,
+              )
+              : 0;
+            log("INFO", `缓冲达到 ${bufferedMs}ms，开始播放。`);
+          } else if (!msg.readyToPlay && state.readyToPlay) {
+            state.readyToPlay = false;
+          }
+        }
+
+        updateStats();
+      };
+
+      const appendAudio = (chunk, config) => {
+        if (!chunk || chunk.byteLength === 0) return;
+        const bytesPerSample = config.bitDepth / 8;
+        const frameSize = bytesPerSample * config.channels;
+        if (frameSize <= 0) return;
+
+        let merged;
+        if (state.pending.length > 0) {
+          merged = new Uint8Array(state.pending.length + chunk.length);
+          merged.set(state.pending, 0);
+          merged.set(chunk, state.pending.length);
+        } else {
+          merged = chunk;
+        }
+
+        const usable = merged.length - (merged.length % frameSize);
+        if (usable <= 0) {
+          state.pending = merged;
+          return;
+        }
+
+        const toDecode = merged.subarray(0, usable);
+        const remainder = merged.subarray(usable);
+        state.pending = remainder.length ? remainder.slice() : new Uint8Array(0);
+        const float32 = decodePCM(toDecode, config.bitDepth);
+        if (state.workletNode) {
+          state.workletNode.port.postMessage(
+            { type: "data", payload: float32 },
+            [float32.buffer],
+          );
+        }
+        state.bytes += chunk.byteLength;
+        state.lastDataTime = new Date();
+        updateStats();
+      };
+
+      const setupAudio = async (config) => {
+        if (!state.audioCtx) {
+          state.audioCtx = new AudioContext({ sampleRate: config.sampleRate });
+          actualRateEl.textContent = String(state.audioCtx.sampleRate);
+          setStep("audio", "ok", "已创建");
+          if (state.audioCtx.sampleRate !== config.sampleRate) {
+            setStep("audio", "warn", "采样率不一致");
+            log(
+              "WARN",
+              `音频上下文采样率 ${state.audioCtx.sampleRate} 与配置 ${config.sampleRate} 不一致，可能出现变速。`,
+            );
+          }
+        }
+
+        if (!state.audioCtx.audioWorklet) {
+          setStep("audio", "error", "不支持");
+          throw new Error("AudioWorklet not supported");
+        }
+
+        if (!state.gainNode) {
+          state.gainNode = state.audioCtx.createGain();
+          state.gainNode.gain.value = Number(gainEl.value);
+          state.gainNode.connect(state.audioCtx.destination);
+        }
+
+        if (!state.workletUrl) {
+          state.workletUrl = createWorkletURL();
+        }
+
+        if (!state.workletLoaded) {
+          await state.audioCtx.audioWorklet.addModule(state.workletUrl);
+          state.workletLoaded = true;
+        }
+
+        if (state.workletNode) {
+          state.workletNode.port.onmessage = null;
+          state.workletNode.disconnect();
+          state.workletNode = null;
+        }
+
+        state.workletNode = new AudioWorkletNode(state.audioCtx, "pcm-player", {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [config.channels],
+          channelCount: config.channels,
+          channelCountMode: "explicit",
+          channelInterpretation: "discrete",
+        });
+        state.workletNode.port.onmessage = handleWorkletMessage;
+        state.workletNode.connect(state.gainNode);
+
+        state.bufferSampleRate = config.sampleRate;
+        state.bufferedFrames = 0;
+        state.underruns = 0;
+        state.readyToPlay = false;
+
+        const targetBufferMs = Number(targetBufferEl.value) || 0;
+        state.workletNode.port.postMessage({
+          type: "config",
+          channels: config.channels,
+          sampleRate: config.sampleRate,
+          targetBufferMs,
+        });
+      };
+
+      const handleStream = async (stream, config) => {
+        setStep("stream", "ok", "已收到");
+        state.streams += 1;
+        updateStats();
+        log("INFO", "收到服务器单向流，开始读取音频数据。");
+
+        const reader = stream.getReader();
+        state.reader = reader;
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value) {
+              if (state.bytes === 0) {
+                setStep("data", "ok", "开始流入");
+              }
+              appendAudio(value, config);
+            }
+          }
+          log("WARN", "单向流已结束。");
+        } catch (error) {
+          log("ERROR", `读取单向流失败：${error}`);
+        }
+      };
+
+      const handleStreams = async (config) => {
+        try {
+          for await (const stream of state.transport.incomingUnidirectionalStreams) {
+            handleStream(stream, config);
+          }
+        } catch (error) {
+          log("ERROR", `监听单向流失败：${error}`);
+        }
+      };
+
+      const connect = async () => {
+        if (!("WebTransport" in window)) {
+          log("ERROR", "当前浏览器不支持 WebTransport。");
+          setStep("support", "error", "不支持");
+          return;
+        }
+
+        const config = {
+          url: qs("url").value.trim(),
+          sampleRate: Number(qs("sampleRate").value) || 44100,
+          channels: Number(qs("channels").value) || 1,
+          bitDepth: Number(qs("bitDepth").value) || 16,
+        };
+
+        if (!config.url) {
+          log("WARN", "请输入服务地址。");
+          return;
+        }
+
+        try {
+          qs("connect").disabled = true;
+          qs("disconnect").disabled = false;
+          qs("resume").disabled = false;
+          setStatus("连接中");
+          setStep("transport", "warn", "创建中");
+          setStep("ready", null, "待连接");
+          setStep("stream", null, "待接收");
+          setStep("data", null, "待接收");
+          setStep("play", null, "待启动");
+          setStep("closed", null, "等待关闭");
+
+          await setupAudio(config);
+          state.readyToPlay = false;
+          state.pending = new Uint8Array(0);
+          state.bytes = 0;
+          state.streams = 0;
+          state.underruns = 0;
+          updateStats();
+
+          log("INFO", `开始连接：${config.url}`);
+          state.transport = new WebTransport(config.url);
+          setStep("transport", "ok", "已创建");
+
+          await state.transport.ready;
+          setStep("ready", "ok", "已就绪");
+          setStatus("已连接");
+          log("INFO", "WebTransport 会话已 ready。");
+
+          handleStreams(config);
+
+          state.transport.closed
+            .then(() => {
+              setStep("closed", "warn", "已关闭");
+              setStatus("已关闭");
+              log("WARN", "WebTransport 会话已关闭。");
+            })
+            .catch((error) => {
+              setStep("closed", "error", "异常关闭");
+              setStatus("异常关闭");
+              log("ERROR", `WebTransport 会话关闭异常：${error}`);
+            });
+        } catch (error) {
+          log("ERROR", `连接失败：${error}`);
+          setStep("ready", "error", "失败");
+          setStatus("连接失败");
+          qs("connect").disabled = false;
+          qs("disconnect").disabled = true;
+        }
+      };
+
+      const disconnect = async () => {
+        qs("disconnect").disabled = true;
+        qs("connect").disabled = false;
+        setStatus("断开中");
+        try {
+          if (state.reader) {
+            await state.reader.cancel();
+            state.reader = null;
+          }
+          if (state.transport) {
+            state.transport.close();
+            state.transport = null;
+          }
+          if (state.audioCtx) {
+            await state.audioCtx.suspend();
+            setStep("play", "warn", "已暂停");
+          }
+          if (state.workletNode) {
+            state.workletNode.port.postMessage({ type: "reset" });
+          }
+          state.bufferedFrames = 0;
+          state.bufferSampleRate = 0;
+          state.underruns = 0;
+          state.readyToPlay = false;
+          updateStats();
+          setStatus("已断开");
+          log("INFO", "已断开连接。");
+        } catch (error) {
+          log("ERROR", `断开失败：${error}`);
+        }
+      };
+
+      qs("connect").addEventListener("click", () => {
+        connect();
+      });
+
+      qs("disconnect").addEventListener("click", () => {
+        disconnect();
+      });
+
+      qs("resume").addEventListener("click", async () => {
+        if (!state.audioCtx) {
+          log("WARN", "音频上下文尚未创建，请先连接。");
+          return;
+        }
+        await state.audioCtx.resume();
+        setStep("play", "warn", "等待缓冲");
+        log("INFO", "已请求启动音频输出。");
+      });
+
+      qs("clearLog").addEventListener("click", () => {
+        logEl.textContent = "";
+        state.logLines = 0;
+        logCountEl.textContent = "0";
+      });
+
+      qs("copyLog").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(logEl.textContent);
+          log("INFO", "日志已复制到剪贴板。");
+        } catch (error) {
+          log("ERROR", `复制失败：${error}`);
+        }
+      });
+
+      gainEl.addEventListener("input", () => {
+        const value = Number(gainEl.value);
+        gainValueEl.textContent = value.toFixed(2);
+        if (state.gainNode) {
+          state.gainNode.gain.value = value;
+        }
+      });
+
+      targetBufferEl.addEventListener("input", () => {
+        if (!state.workletNode) return;
+        const targetBufferMs = Number(targetBufferEl.value) || 0;
+        state.workletNode.port.postMessage({ type: "target", targetBufferMs });
+      });
+
+      if ("WebTransport" in window) {
+        setStep("support", "ok", "支持");
+      } else {
+        setStep("support", "error", "不支持");
+      }
+
+      if (window.isSecureContext) {
+        setStep("secure", "ok", "HTTPS");
+      } else {
+        setStep("secure", "warn", "非安全上下文");
+      }
+
+      setStep("audio", "warn", "待启动");
+      setStatus("未连接");
+      updateStats();
+      log(
+        "INFO",
+        "页面已就绪。若连接失败，请确认服务器证书已在浏览器中信任。",
+      );
+    })();
+  </script>
+</body>
+
+</html>

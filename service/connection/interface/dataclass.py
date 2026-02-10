@@ -14,7 +14,7 @@ class HeaderInfo:
     authority: URL
     """HTTP/3 请求方请求的地址"""
 
-    origin: URL
+    origin: Optional[URL]
     """HTTP/3 的请求方地址"""
 
     path: URL
@@ -39,7 +39,8 @@ class HeaderInfo:
         authority: URL = URL(
             f"{simply_header[':scheme']}://{simply_header[':authority']}"
         )
-        origin: URL = URL(simply_header[":origin"])
+        origin_value = simply_header.get(":origin")
+        origin: Optional[URL] = URL(origin_value) if origin_value else None
         path: URL = URL(simply_header[":path"])
 
         match simply_header[":scheme"]:
