@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Optional
-from urllib.parse import SplitResult, urlsplit
+
+from yarl import URL
 
 from service.connection.interface.enum import H3Method, H3Protocol, H3Scheme
 from service.connection.handler import HandlerFactory
@@ -10,13 +11,13 @@ from service.connection.handler import HandlerFactory
 class HeaderInfo:
     """HTTP/3 请求方发起的请求信息"""
 
-    authority: SplitResult
+    authority: URL
     """HTTP/3 请求方请求的地址"""
 
-    origin: SplitResult
+    origin: URL
     """HTTP/3 的请求方地址"""
 
-    path: SplitResult
+    path: URL
     """HTTP/3 的连接端点"""
 
     scheme: H3Scheme
@@ -35,9 +36,11 @@ class HeaderInfo:
             (header.decode(), value.decode()) for header, value in header
         )
 
-        authority: SplitResult = urlsplit(simply_header[":authority"])
-        origin: SplitResult = urlsplit(simply_header[":origin"])
-        path: SplitResult = urlsplit(simply_header[":path"])
+        authority: URL = URL(
+            f"{simply_header[':scheme']}://{simply_header[':authority']}"
+        )
+        origin: URL = URL(simply_header[":origin"])
+        path: URL = URL(simply_header[":path"])
 
         match simply_header[":scheme"]:
             case "https":
@@ -87,7 +90,7 @@ class SessionInfo:
     stream_id: int
     """请求方申请的连接 ID"""
 
-    path: SplitResult
+    path: URL
     """请求方访问的端点（包含查询参数）"""
 
     client: Optional[tuple[str, int] | str]

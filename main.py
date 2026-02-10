@@ -17,7 +17,6 @@ from service.controller.interface.dataclass import (
     CaptureSampleRate,
 )
 from service.controller.fetch import FetchService
-from service.plugin.registry import PluginRegistry
 
 logging.basicConfig(
     level="INFO",
