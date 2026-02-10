@@ -13,20 +13,7 @@ wheels/
 *.cer
 *.crt
 *.key
-
-# Go 编译输出
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-outdoor_aerial_server
-client_player
-
-# Go 依赖目录 (使用 go modules)
-vendor/
+*.pem
 
 # IDE
 .idea/

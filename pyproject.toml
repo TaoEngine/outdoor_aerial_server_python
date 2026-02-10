@@ -10,6 +10,7 @@ dependencies = [
     "pyfiglet>=1.0.4",
     "rich>=14.3.0",
     "sounddevice>=0.5.5",
+    "trio>=0.32.0",
     "yarl>=1.22.0",
 ]
 
