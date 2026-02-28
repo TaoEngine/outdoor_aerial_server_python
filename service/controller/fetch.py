@@ -4,10 +4,10 @@ import logging
 from sounddevice import RawInputStream
 from typing import Awaitable, Callable, Optional, Self
 
-from service.controller.interface.dataclass import CaptureConfig
+from service.controller.dataclass import CaptureConfig
+from service.controller.interface import ClientFn
 
 log = logging.getLogger(__name__)
-
 
 class FetchService:
     """广播信号采集分发服务"""
@@ -29,7 +29,7 @@ class FetchService:
         self.__config: CaptureConfig = config
         """广播信号采集配置"""
 
-        self.__clients: dict[int, Callable[[bytes], Awaitable[None]]] = dict()
+        self.__clients: dict[int, ClientFn] = dict()
         """订阅服务的客户端们"""
 
         maxsize: int = self.__config.maxsize
@@ -125,7 +125,7 @@ class FetchService:
         except asyncio.CancelledError:
             log.info("广播信号分发服务已被终止")
 
-    def subscribe(self, id: int, client: Callable[[bytes], Awaitable[None]]) -> None:
+    def subscribe(self, id: int, client: ClientFn) -> None:
         """让客户端订阅广播信号采集分发服务"""
         self.__clients[id] = client
         log.info(f"有新的客户端加入分发服务 目前共 {self.__clients.__len__()} 个")

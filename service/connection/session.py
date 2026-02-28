@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Optional, Protocol
 
 from aioquic.h3.connection import H3Connection
 from aioquic.h3.events import (
@@ -15,9 +16,9 @@ from aioquic.quic.connection import (
     stream_is_client_initiated,
     stream_is_unidirectional,
 )
+from yarl import URL
 
 from service.connection.handler import WebTransportHandler, WebTransportStream
-from service.connection.interface.dataclass import SessionInfo
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class WebTransportSession:
         h3: H3Connection,
         quic: QuicConnection,
         session_id: int,
-        session_info: SessionInfo,
+        session_info: WebTransportSession,
         handler: WebTransportHandler,
         transmit: Callable[[], None],
     ) -> None:
@@ -116,8 +117,8 @@ class WebTransportSession:
                 else:
                     self._spawn_task(self._handler.on_stream_bidirectional(stream))
 
-        if stream.can_read:
-            stream.feed_data(event.data, event.stream_ended)
+        if stream.readable:
+            stream._feed(event.data, event.stream_ended)
 
     def handle_datagram(self, event: DatagramReceived) -> None:
         self._spawn_task(self._handler.on_datagram(event.data))
@@ -182,3 +183,48 @@ class WebTransportSession:
             pass
         except Exception as exc:
             log.warning("WebTransport handler task error: %s", exc)
+
+class WebTransportSessionContext(Protocol):
+    """会话处理器可调用的服务端上下文能力"""
+
+    async def create_stream(self, bidirectional: bool) -> WebTransportStream:
+        """控制服务端创建流
+        
+        Args:
+            bidirectional (bool): 指定单向流 `(False)` 还是双向流 `(True)`
+
+        Returns:
+            WebTransportStream: 返回一个设置好的 WebTransport 管道
+        """
+        ...
+
+    def send_datagram(self, data: bytes) -> None:
+        """控制服务端发送数据包
+
+        Args:
+            data (bytes): 需发送的数据报
+        """
+        ...
+
+    def close_session(self, error: bool, reason: str | None) -> None:
+        """控制服务端主动关闭会话
+        
+        Args:
+            error (bool): 是否因为故障而关闭会话
+            reason (str | None): 关闭会话的理由
+        """
+        ...
+
+# TODO 这个写的很有问题，有好多功能与HeaderInfo重复
+@dataclass(frozen=True)
+class WebTransportSessionInfo:
+    """WebTransport 在单次连接事件中所含的信息"""
+
+    stream_id: int
+    """请求方申请的连接 ID"""
+
+    path: URL
+    """请求方访问的端点（包含查询参数）"""
+
+    client: Optional[tuple[str, int] | str]
+    """在此次连接事件的客户端信息"""

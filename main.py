@@ -10,7 +10,7 @@ from rich.logging import RichHandler
 
 from service.connection import start_webtransport_service
 from service.controller import CaptureConfig, start_fetch_service
-from service.controller.interface.dataclass import (
+from service.controller.dataclass import (
     CaptureBlockSize,
     CaptureChannel,
     CaptureDtype,
