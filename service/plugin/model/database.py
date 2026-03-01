@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from service.plugin.interface.dataclass import PluginInfo
+
+if TYPE_CHECKING:
+    from service.database.interface import DatabaseBackend
 
 
 class DatabasePlugin(ABC):
@@ -10,7 +14,11 @@ class DatabasePlugin(ABC):
     """数据库插件的信息"""
 
     @abstractmethod
-    async def setup(self, context) -> None:
+    def create_backend(self, **kwargs) -> "DatabaseBackend":
+        """创建数据库后端实例"""
+
+    @abstractmethod
+    async def setup(self, context: "DatabaseBackend") -> None:
         """
         数据库插件初始化过程
 

@@ -14,7 +14,7 @@ class PluginRegistry:
         self.__plugins: dict[str, PluginModel] = dict()
 
     def load(self) -> None:
-        for folder in Path("plugin").iterdir():
+        for folder in Path("asset/plugin").iterdir():
             # 不处理根目录文件
             if not folder.is_dir():
                 continue
@@ -26,8 +26,19 @@ class PluginRegistry:
             # 分配导入插件
             spec = spec_from_file_location(folder.name, module_path)
             if spec:
-                moudle: ModuleType = module_from_spec(spec)
+                module: ModuleType = module_from_spec(spec)
                 if spec.loader:
-                    spec.loader.exec_module(moudle)
-                plugin: PluginModel = moudle.create_plugin()
+                    spec.loader.exec_module(module)
+                plugin: PluginModel = module.create_plugin()
                 self.__plugins[plugin.plugin_info.name] = plugin
+
+    def get(self, name: str) -> PluginModel | None:
+        """按名称读取已注册插件"""
+        return self.__plugins.get(name)
+
+    def get_database_plugin(self, name: str) -> DatabasePlugin | None:
+        """按名称读取数据库插件"""
+        plugin = self.get(name)
+        if isinstance(plugin, DatabasePlugin):
+            return plugin
+        return None
