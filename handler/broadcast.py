@@ -1,5 +1,5 @@
 from service.connection.handler import WebTransportHandler, WebTransportStream
-from service.connection.dataclass import WebTransportSessionInfo
+from service.connection.session import WebTransportSessionInfo
 from service.controller import FetchService
 
 

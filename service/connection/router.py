@@ -1,9 +1,19 @@
 import logging
+from dataclasses import dataclass
 from typing import Optional
 
+from service.connection.types import HandlerFactory
 
-from service.connection.interface.dataclass import RouteInfo
-from service.connection.handler import HandlerFactory
+
+@dataclass(frozen=True)
+class RouteInfo:
+    """WebTransport 路由注册项。"""
+
+    handler_factory: "HandlerFactory"
+    """处理器工厂，用于为每个会话构建处理器实例。"""
+
+    kwargs: dict[str, object]
+    """传给处理器工厂的额外参数。"""
 
 
 log = logging.getLogger(__name__)

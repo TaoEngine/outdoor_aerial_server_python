@@ -1,27 +1,38 @@
 import asyncio
 from dataclasses import dataclass
 
-from service.connection.interface import StreamSendFn, TransmitFn
+from service.connection.types import StreamSendFn, TransmitFn
+
+
+@dataclass(frozen=True, slots=True)
+class StreamChunk:
+    """流中传递的数据块。"""
+
+    data: bytes
+    """收到或待发送的数据。"""
+
+    end_stream: bool
+    """是否为流结束标记。"""
 
 
 @dataclass(frozen=True)
 class WebTransportStreamConfig:
-    """WebTransport 管道配置"""
+    """单个 WebTransport 流的能力配置。"""
 
     stream_id: int
-    """客户端的 ID"""
+    """流 ID。"""
 
     bidirectional: bool
-    """指定单向流还是双向流"""
+    """是否为双向流。"""
 
     readable: bool
-    """管道是否可读"""
+    """当前端是否允许读取。"""
 
-    writeable: bool
-    """管道是否可写"""
+    writable: bool
+    """当前端是否允许写入。"""
 
     queue: int = 16
-    """基于asyncio的queue最大容量"""
+    """接收缓冲队列上限。"""
 
 
 class WebTransportStream:
@@ -39,7 +50,7 @@ class WebTransportStream:
         self.__closed = False
         """管道是否关闭"""
 
-        self.__queue: asyncio.Queue[tuple[bytes, bool]] = asyncio.Queue(
+        self.__queue: asyncio.Queue[StreamChunk] = asyncio.Queue(
             maxsize=self.__config.queue
         )
         """管道需要处理的数据队列"""
@@ -63,9 +74,9 @@ class WebTransportStream:
         return self.__config.readable
 
     @property
-    def writeable(self) -> bool:
+    def writable(self) -> bool:
         """管道是否可写"""
-        return self.__config.writeable
+        return self.__config.writable
 
     @property
     def closed(self) -> bool:
@@ -80,14 +91,14 @@ class WebTransportStream:
         if self.__closed and self.__queue.empty():
             raise RuntimeError(f"管道 {self.stream_id} 已被关闭")
 
-        data, end_stream = await self.__queue.get()
-        if end_stream:
+        chunk = await self.__queue.get()
+        if chunk.end_stream:
             self.__closed = True
-        return data
+        return chunk.data
 
     async def write(self, data: bytes, end_stream: bool = False) -> None:
         """向管道内写入数据"""
-        if not self.writeable:
+        if not self.writable:
             raise RuntimeError(f"管道 {self.stream_id} 不可写入")
 
         self._send_stream_data(self.stream_id, data, end_stream)
@@ -100,7 +111,7 @@ class WebTransportStream:
         if self.__closed:
             return
         try:
-            self.__queue.put_nowait((data, end_stream))
+            self.__queue.put_nowait(StreamChunk(data=data, end_stream=end_stream))
         except asyncio.QueueFull:
             if end_stream:
                 self.__closed = True
@@ -113,6 +124,6 @@ class WebTransportStream:
 
         try:
             # 发送终止数据命令
-            self.__queue.put_nowait((b"", True))
+            self.__queue.put_nowait(StreamChunk(data=b"", end_stream=True))
         except asyncio.QueueFull:
             pass
