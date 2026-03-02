@@ -330,13 +330,13 @@ class SQLitePlugin(DatabasePlugin):
     plugin_info = PluginInfo(
         name="sqlite",
         description="使用 SQLite 作为服务端数据库后端",
-        author="Outdoor Aerial",
+        author="TaoEngine",
         license="MIT",
         version="0.1.0",
     )
 
     def create_backend(self, **kwargs) -> DatabaseBackend:
-        path = kwargs.get("path", "database/outdoor_aerial.sqlite3")
+        path = kwargs.get("path", "asset/db/radio.db")
         return SQLiteDatabaseBackend(path=path)
 
     async def setup(self, context: DatabaseBackend) -> None:
