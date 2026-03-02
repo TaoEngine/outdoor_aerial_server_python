@@ -9,12 +9,12 @@ from yarl import URL
 from model.episode import Episode
 from model.program import Program, ProgramStatus, ProgramType, ProgramWeekday
 from model.station import RadioStation, StationStatus, StationType
-from service.database.interface import DatabaseBackend
+from service.database.interface import AbstractDatabaseBackend
 from service.plugin.interface.dataclass import PluginInfo
 from service.plugin.model.database import DatabasePlugin
 
 
-class SQLiteDatabaseBackend(DatabaseBackend):
+class SQLiteDatabaseBackend(AbstractDatabaseBackend):
     """SQLite 数据库后端"""
 
     def __init__(self, path: str = "asset/db/radio.db") -> None:
@@ -28,23 +28,23 @@ class SQLiteDatabaseBackend(DatabaseBackend):
     async def initialize(self) -> None:
         await self._run(self._initialize_sync)
 
-    async def save_episode(self, episode: Episode) -> None:
+    async def write_episode(self, episode: Episode) -> None:
         await self._run(self._save_episode_sync, episode)
 
-    async def save_program(self, program: Program) -> None:
+    async def write_program(self, program: Program) -> None:
         await self._run(self._save_program_sync, program)
 
-    async def save_station(self, station: RadioStation) -> None:
+    async def write_station(self, station: RadioStation) -> None:
         await self._run(self._save_station_sync, station)
 
-    async def get_episode(self, uuid: bytes) -> Episode | None:
-        return await self._run(self._get_episode_sync, uuid)
+    async def query_episode(self, uuid: bytes) -> Episode | None:
+        return await self._run(self._query_episode_sync, uuid)
 
-    async def get_program(self, uuid: bytes) -> Program | None:
-        return await self._run(self._get_program_sync, uuid)
+    async def query_program(self, uuid: bytes) -> Program | None:
+        return await self._run(self._query_program_sync, uuid)
 
-    async def get_station(self, uuid: bytes) -> RadioStation | None:
-        return await self._run(self._get_station_sync, uuid)
+    async def query_station(self, uuid: bytes) -> RadioStation | None:
+        return await self._run(self._query_station_sync, uuid)
 
     async def delete_episode(self, uuid: bytes) -> bool:
         return await self._run(self._delete_episode_sync, uuid)
@@ -217,7 +217,7 @@ class SQLiteDatabaseBackend(DatabaseBackend):
         )
         self._connection.commit()
 
-    def _get_episode_sync(self, uuid: bytes) -> Episode | None:
+    def _query_episode_sync(self, uuid: bytes) -> Episode | None:
         row = self._connection.execute(
             """
             SELECT uuid, program, cover, title, abstract, favorite_flag, publish_time
@@ -238,7 +238,7 @@ class SQLiteDatabaseBackend(DatabaseBackend):
             time=datetime.fromisoformat(row["publish_time"]),
         )
 
-    def _get_program_sync(self, uuid: bytes) -> Program | None:
+    def _query_program_sync(self, uuid: bytes) -> Program | None:
         row = self._connection.execute(
             """
             SELECT
@@ -268,7 +268,7 @@ class SQLiteDatabaseBackend(DatabaseBackend):
             end=time.fromisoformat(row["end_time"]),
         )
 
-    def _get_station_sync(self, uuid: bytes) -> RadioStation | None:
+    def _query_station_sync(self, uuid: bytes) -> RadioStation | None:
         row = self._connection.execute(
             """
             SELECT
@@ -335,11 +335,11 @@ class SQLitePlugin(DatabasePlugin):
         version="0.1.0",
     )
 
-    def create_backend(self, **kwargs) -> DatabaseBackend:
+    def create_backend(self, **kwargs) -> AbstractDatabaseBackend:
         path = kwargs.get("path", "asset/db/radio.db")
         return SQLiteDatabaseBackend(path=path)
 
-    async def setup(self, context: DatabaseBackend) -> None:
+    async def setup(self, context: AbstractDatabaseBackend) -> None:
         await context.initialize()
 
 
