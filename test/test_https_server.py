@@ -56,12 +56,12 @@ def build_arg_parser(project_root: Path) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--cert",
-        default=str(project_root / "cert" / "wthomec4.dns.army.cer"),
+        default=str(project_root / "asset" / "cert" / "wthomec4.dns.army.cer"),
         help="TLS certificate path (default: cert/wthomec4.dns.army.cer)",
     )
     parser.add_argument(
         "--key",
-        default=str(project_root / "cert" / "wthomec4.dns.army.key"),
+        default=str(project_root / "asset" / "cert" / "wthomec4.dns.army.key"),
         help="TLS private key path (default: cert/wthomec4.dns.army.key)",
     )
     return parser
@@ -71,7 +71,9 @@ class IPv6ThreadingHTTPServer(ThreadingHTTPServer):
     address_family = socket.AF_INET6
 
 
-def run_server(host: str, port: int, web_root: Path, cert_path: Path, key_path: Path) -> None:
+def run_server(
+    host: str, port: int, web_root: Path, cert_path: Path, key_path: Path
+) -> None:
     if not web_root.exists():
         raise FileNotFoundError(f"web root not found: {web_root}")
     if not cert_path.exists():

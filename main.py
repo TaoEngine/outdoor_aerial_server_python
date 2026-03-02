@@ -1,26 +1,26 @@
 import asyncio
 import logging
-from socket import gaierror
-from typing import Optional
-
-from aioquic.asyncio.server import serve
-from aioquic.asyncio.server import QuicServer
 from aioquic.h3.connection import H3_ALPN
 from aioquic.quic.configuration import QuicConfiguration
 from pyfiglet import figlet_format
 from rich.logging import RichHandler
 
 from handler.broadcast import BroadcastHandler
-from service.connection.protocol import WebTransportProtocol
-from service.connection.router import WebTransportRouter
-from service.controller import CaptureConfig, start_fetch_service
+from event import (
+    ConnectionOptions,
+    ConnectionRoute,
+    EventBus,
+    register_connection_service,
+    register_controller_service,
+    register_database_service,
+)
+from service.controller import CaptureConfig
 from service.controller.dataclass import (
     CaptureBlockSize,
     CaptureChannel,
     CaptureDtype,
     CaptureSampleRate,
 )
-from service.controller.fetch import FetchService
 
 logging.basicConfig(
     level="INFO",
@@ -47,59 +47,44 @@ configuration = QuicConfiguration(
     is_client=False,
 )
 configuration.load_cert_chain(
-    "cert/wthomec4.dns.army.cer",
-    "cert/wthomec4.dns.army.key",
+    "asset/cert/wthomec4.dns.army.cer",
+    "asset/cert/wthomec4.dns.army.key",
 )
 
 
-async def start_webtransport_service(
-    configuration: QuicConfiguration,
-    host: str,
-    port: int = 58908,
-) -> QuicServer | None:
-    """启动 HTTP/3 WebTransport 服务。"""
-    app = WebTransportRouter()
-    app.add_route("/broadcast", BroadcastHandler)
-
-    try:
-        server = await serve(
-            host=host,
-            port=port,
-            configuration=configuration,
-            create_protocol=lambda *args, **kwargs: WebTransportProtocol(
-                app=app,
-                *args,
-                **kwargs,
-            ),
-        )
-        log.info(f"已绑定 {host} 域名作为服务入口 端口为 {port}")
-        return server
-    except gaierror:
-        log.fatal(f"{host} 是个并不存在的域名")
-    except OSError:
-        log.fatal(f"{host} 域名未与本机的 IP 绑定在一起")
-
-
 async def main():
-    fetch_service: Optional[FetchService] = None
-    webtransport_service: Optional[QuicServer] = None
-    # try:
-    # 广播信号采集分发服务
-    fetch_service = await start_fetch_service(config=config)
+    bus = EventBus()
 
-    # HTTP/3 WebTransport 服务
-    webtransport_service = await start_webtransport_service(
-        configuration=configuration,
-        host="wthomec4.dns.army",
+    # 注册广播信号采集分发服务
+    register_controller_service(bus, config=config)
+
+    # 注册数据库服务（默认使用 sqlite 插件）
+    register_database_service(bus)
+
+    # 注册 HTTP/3 WebTransport 连接服务
+    register_connection_service(
+        bus,
+        ConnectionOptions(
+            configuration=configuration,
+            host="wthomec4.dns.army",
+            routes=[
+                ConnectionRoute(
+                    "/broadcast",
+                    BroadcastHandler,
+                    kwargs_factory=lambda services: {
+                        "fetch_service": services.controller,
+                    },
+                ),
+            ],
+        ),
     )
 
-    # 服务持续运行
-    await asyncio.Future()
-    # finally:
-    #     if fetch_service:
-    #         fetch_service.stop()
-    #     if webtransport_service:
-    #         webtransport_service.close()
+    try:
+        await bus.startup_services()
+        # 服务持续运行
+        await asyncio.Future()
+    finally:
+        await bus.shutdown_services()
 
 
 if __name__ == "__main__":
