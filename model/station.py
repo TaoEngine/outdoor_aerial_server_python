@@ -59,7 +59,7 @@ class StationStatus(Enum):
 
 
 @dataclass(frozen=True, slots=True)
-class RadioStation:
+class Station:
     """广播电台数据模型"""
 
     uuid: bytes
@@ -102,7 +102,7 @@ class RadioStation:
     """用户是否屏幕该广播电台 电台将被拉黑并在应用中消失"""
 
     start: time
-    """广播电台的开台时间"""
+    """广播电台的播音开始时间"""
 
     end: time
-    """广播电台的再见时间"""
+    """广播电台的播音结束时间"""
