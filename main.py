@@ -1,9 +1,9 @@
-import asyncio
+import trio
 import logging
 from pyfiglet import figlet_format
 from rich.logging import RichHandler
 
-from service.runtime import start
+from service import runtime
 
 logging.basicConfig(
     level="INFO",
@@ -20,7 +20,4 @@ log = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     log.info(f"\n{figlet_format('Outdoor Aerial')}\n永远热爱户外和广播！")
-    try:
-        asyncio.run(start())
-    except KeyboardInterrupt:
-        log.warning("服务被 Ctrl+C 终止运行")
+    trio.run(runtime)

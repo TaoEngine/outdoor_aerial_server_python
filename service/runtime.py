@@ -1,17 +1,42 @@
-import asyncio
+import logging
+
+import trio
+from pluggy import PluginManager
 
 from plugin import build_plugin_manager, hook_plugin
+
 from .run_broadcast import run_broadcast
 
+log = logging.getLogger(__name__)
 
-async def start():
+
+async def init_plugin(pm: PluginManager) -> None:
+    async with trio.open_nursery() as nursery:
+        nursery.start_soon(hook_plugin, pm, "init_connection")
+        nursery.start_soon(hook_plugin, pm, "init_database")
+        nursery.start_soon(hook_plugin, pm, "init_repository")
+        nursery.start_soon(hook_plugin, pm, "init_tuner")
+    log.info("已初始化所有服务")
+
+
+async def dispose_plugin(pm: PluginManager) -> None:
+    async with trio.open_nursery() as nursery:
+        nursery.start_soon(hook_plugin, pm, "dispose_connection")
+        nursery.start_soon(hook_plugin, pm, "dispose_database")
+        nursery.start_soon(hook_plugin, pm, "dispose_repository")
+        nursery.start_soon(hook_plugin, pm, "dispose_tuner")
+    log.info("已卸载所有服务")
+
+
+async def runtime():
     pm = build_plugin_manager()
-    await asyncio.gather(
-        hook_plugin(pm, "init_connection"),
-        hook_plugin(pm, "init_database"),
-        hook_plugin(pm, "init_repository"),
-        hook_plugin(pm, "init_tuner"),
-    )
-    stop = asyncio.Event()
-    asyncio.create_task(run_broadcast(pm, stop))
-    await stop.wait()
+    await init_plugin(pm)
+
+    event = trio.Event()
+    try:
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(run_broadcast, pm, event)
+    except KeyboardInterrupt:
+        log.exception("服务被 Ctrl+C 终止运行")
+    finally:
+        await dispose_plugin(pm)
