@@ -3,7 +3,7 @@ from typing import Awaitable, Callable, Iterable, cast
 
 from pluggy import PluginManager
 
-from .spec import ConnectionSpec, DatabaseSpec, RepositorySpec, TunerSpec
+from .spec import AgentSpec, ConnectionSpec, DatabaseSpec, RepositorySpec, TunerSpec
 
 PROJECT_NAME = "outdoor.aerial.sever"
 ENTRYPOINT_GROUP = "outdoor.aerial.plugins"
@@ -11,6 +11,7 @@ ENTRYPOINT_GROUP = "outdoor.aerial.plugins"
 
 def build_plugin_manager(load_entrypoints: bool = True) -> PluginManager:
     pm = PluginManager(PROJECT_NAME)
+    pm.add_hookspecs(AgentSpec)
     pm.add_hookspecs(ConnectionSpec)
     pm.add_hookspecs(DatabaseSpec)
     pm.add_hookspecs(RepositorySpec)
@@ -20,7 +21,7 @@ def build_plugin_manager(load_entrypoints: bool = True) -> PluginManager:
     return pm
 
 
-async def hook_plugin(
+async def call_plugin(
     pm: PluginManager,
     hook_name: str,
     *args: object,
