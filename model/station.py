@@ -1,65 +1,12 @@
-from dataclasses import dataclass
 from datetime import time
-from enum import Enum
 
+from msgspec import Struct
 from yarl import URL
 
-
-class StationType(Enum):
-    """广播电台的类型"""
-
-    INTEGRATE = 0
-    """综合台"""
-
-    TRAFFIC = 1
-    """交通台"""
-
-    MUSIC = 2
-    """音乐台"""
-
-    NEWS = 3
-    """新闻台"""
-
-    ECONOMY = 4
-    """经济台"""
-
-    SPORTS = 5
-    """体育台"""
-
-    EDUCATIONAL = 6
-    """科教台"""
-
-    SCIENCE = 7
-    """科学台"""
-
-    INTERNATIONAL = 8
-    """国际台"""
-
-    AGRICULTURAL = 9
-    """农业台"""
-
-    CHILDREN = 10
-    """少儿台"""
-
-    HEALTH = 11
-    """健康台"""
+from model.enum import StationStatus, StationType
 
 
-class StationStatus(Enum):
-    """广播电台的播出状态"""
-
-    BROADCASTING = 0
-    """广播中"""
-
-    MAINTENANCE = 1
-    """停机检修"""
-
-    OFFAIR = 2
-    """电台停播 哭了"""
-
-
-@dataclass(frozen=True, slots=True)
-class Station:
+class Station(Struct, frozen=True):
     """广播电台数据模型"""
 
     uuid: bytes

@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 from datetime import datetime
 
+from msgspec import Struct
 
-@dataclass(frozen=True, slots=True)
-class Episode:
+
+class Episode(Struct, frozen=True):
     """单期电台节目数据类型"""
 
     program: bytes
