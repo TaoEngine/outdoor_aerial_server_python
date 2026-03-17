@@ -1,4 +1,5 @@
 from pluggy import HookspecMarker
+from asyncio import Queue
 
 hookspec = HookspecMarker("outdoor.aerial.sever")
 
@@ -17,6 +18,6 @@ class ConnectionSpec:
         ...
 
     @hookspec
-    async def entrypoint_broadcast(self, payload: bytes) -> None:
+    async def entrypoint_broadcast(self, payload: Queue[bytes]) -> None:
         """广播端点"""
         ...

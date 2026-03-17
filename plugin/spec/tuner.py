@@ -24,3 +24,8 @@ class TunerSpec:
     async def capture(self) -> bytes | None:
         """采集调谐器"""
         ...
+
+    @hookspec
+    async def request_rds(self) -> bytes:
+        """请求调谐器的 RDS 信息"""
+        ...
